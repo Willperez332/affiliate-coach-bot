@@ -1,0 +1,87 @@
+{
+  "name": "New Entry (Conspiracy)",
+  "style": "Conspiracy",
+  "video_url": "https://www.tiktok.com/t/ZP8rJhxPe/",
+  "views": 1200000,
+  "sales_gmv": 0.0,
+  "deconstruction": {
+    "transcript": "All are seriously gonna regret not taking this guy seriously when he says stuff like this. The big problem is we need double the energy we currently have in the United States. Can you imagine? You don't have to hook into the grid which is old and you know, could be taken out. If it's taken out, they wouldn't have any way to get uh any electricity. What's even weirder is this random yellow family that always predicts things before they happen said the exact same thing. The great blackout. No power and no prospects of getting any. What is it? What is it? We'll never know. Don't worry kids. The government will help. The government cannot help itself let alone you. To take your minds off your troubles, I propose some kind of games. Either hunger or squid. Now this man has gone silent after he exposed the most powerful resource we will need when the grid goes down. Electricity is more important than anything after air. It's even more important than water because if you don't have electricity you're not gonna have water. And human beings need water. They they will die after three days of not having water. Water will be the most valuable resource when the grid goes down because most people won't have a safe way to get it. The grocery stores will be mobbed and completely wiped and the water you have in your home will only last you so long. That is exactly why each person in my family has one of these. These emergency water straws will filter just about any body of water getting rid of all that bacteria and turning it into clean drinking water. The average person drinks 180 gallons per year. These will filter up to 1800 gallons so they will last you for life. They are constantly selling out but thankfully I was able to get a five pack for my entire family. I'm gonna leave a link to their store somewhere down here but if you don't see it that means they're gone.",
+    "visual_log": [
+      {
+        "timestamp": "0:00-0:05",
+        "description": "Woman's face, text overlay: \"NO ONE IS READY\" with before and after images of the world map, and a photo of Donald Trump"
+      },
+      {
+        "timestamp": "0:05-0:18",
+        "description": "Video clip of Donald Trump speaking at a podium"
+      },
+      {
+        "timestamp": "0:18-0:23",
+        "description": "Woman's face with Simpsons family image overlay"
+      },
+      {
+        "timestamp": "0:23-0:41",
+        "description": "Various Simpsons clips depicting a blackout"
+      },
+      {
+        "timestamp": "0:41-0:46",
+        "description": "Woman's face with a video clip overlay of a man in a suit"
+      },
+      {
+        "timestamp": "0:46-0:59",
+        "description": "Video clip of a man in a suit speaking"
+      },
+      {
+        "timestamp": "1:00-1:04",
+        "description": "Woman's face"
+      },
+      {
+        "timestamp": "1:04-1:07",
+        "description": "Woman's face with a video clip overlay of people rushing to buy water"
+      },
+      {
+        "timestamp": "1:07-1:08",
+        "description": "Woman's face with a video clip overlay of empty grocery shelves"
+      },
+      {
+        "timestamp": "1:08-1:11",
+        "description": "Woman's face"
+      },
+      {
+        "timestamp": "1:11-1:23",
+        "description": "Woman holding and showing an emergency water straw, with various video clips overlayed"
+      },
+      {
+        "timestamp": "1:23-1:30",
+        "description": "Woman holding and showing the emergency water straw packaging"
+      }
+    ],
+    "pacing_energy": {
+      "overall_pacing": "Fast-paced, urgent tone.",
+      "energy_level": "High energy throughout, driven by the urgency and dramatic nature of the content.",
+      "key_shifts": [
+        {
+          "timestamp": "0:00-0:05",
+          "description": "High energy introduction setting a dramatic, attention-grabbing tone."
+        },
+        {
+          "timestamp": "0:05-0:18",
+          "description": "Slightly lower energy as the video shows Trump's speech; but maintains an urgent tone."
+        },
+        {
+          "timestamp": "0:18-0:41",
+          "description": "High energy, maintaining a sense of urgency and mystery using the Simpsons."
+        },
+        {
+          "timestamp": "0:41-0:59",
+          "description": "Energy levels are elevated due to the gravity of the second expert's statements"
+        },
+        {
+          "timestamp": "1:00-1:30",
+          "description": "Energy gradually decreases as she transitions to a sales pitch; however the urgency is still palpable."
+        }
+      ]
+    }
+  },
+  "core_lesson": "This video demonstrates that leveraging controversial figures and fear-mongering can achieve high viewership but fails to translate into sales, highlighting the importance of audience alignment and authentic value propositions in converting viral attention to commercial success."
+}
