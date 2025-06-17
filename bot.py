@@ -8,6 +8,8 @@ import time
 import asyncio
 import ast
 from datetime import datetime, timezone
+from brain import deconstruct_and_summarize # Import the brain
+from migrate_library import main as run_migration_script # Import the migration task
 DATA_DIR = "/data"
 
 # --- NEW IMPORTS ---
@@ -58,71 +60,6 @@ def find_best_references(style, gold, public, vanity, duds):
     best_vanity = next((v for v in vanity if v.get("style", "").lower() == style.lower()), vanity[0] if vanity else None)
     best_dud = next((v for v in duds if v.get("style", "").lower() == style.lower()), duds[0] if duds else None)
     return best_winner, best_vanity, best_dud
-
-# --- BOT'S BRAIN (DECONSTRUCTION, STRATEGY, AND ANALYSIS) ---
-async def deconstruct_and_summarize(video_file, performance_data):
-    """
-    Performs a deep, dual-brain analysis of the entire video and the specific hook.
-    """
-    print("Performing deep analysis for library...")
-    model = genai.GenerativeModel(model_name="gemini-1.5-flash")
-    prompt = f"""
-    You are a master viral video analyst. Your task is to perform a deep deconstruction of the provided video based on its performance data. You must analyze the video as a whole AND perform a specialized, deep analysis of the video's hook (the first 5-10 seconds).
-
-    **PERFORMANCE DATA:**
-    {json.dumps(performance_data, indent=2)}
-
-    **YOUR TASK (Output a single structured dictionary):**
-
-    **1. Full Video Deconstruction:**
-       - **full_transcript:** Provide a complete, accurate transcript of the video.
-       - **scene_identification:** Log the visual scenes with timestamps. Identify if a scene is 'user_talking_head', 'screen_recording', 'movie_clip', 'image_insert', etc. For movie/TV clips, identify the source if possible (e.g., 'The Simpsons', 'Wall-E').
-       - **funnel_analysis:** In 2-3 sentences, describe how the video attempts to take a viewer from the hook to the final call-to-action. Analyze its 'organic feel' and how the creator established authority.
-       - **core_lesson:** Based on the performance data, what is the single most important strategic lesson this video teaches us?
-
-    **2. Specialized Hook Analysis ("Hook Brain"):**
-       - **hook_text:** Transcribe the first 5-10 seconds of spoken dialogue.
-       - **hook_format:** Identify the format. Is it a 'visual_hook' (something shown), 'text_hook' (an overlay), 'auditory_hook' (a sound), or 'spoken_hook'?
-       - **hook_type:** Is the hook a 'question', a 'bold_statement', a 'story_lead_in', or a 'controversial_claim'?
-       - **tonality:** Describe the vocal tonality of the hook (e.g., "Urgent and conspiratorial," "Calm and authoritative," "Excited and personal").
-       - **emotional_trigger:** What primary emotion is the hook designed to trigger? (e.g., 'Curiosity', 'Fear', 'Anger', 'Hope', 'FOMO').
-
-    **OUTPUT ONLY A STRUCTURED PYTHON DICTIONARY LITERAL that contains all of these keys.**
-    Example Structure:
-    {{
-        "full_video_deconstruction": {{
-            "full_transcript": "...",
-            "scene_identification": [
-                {{"timestamp": "0:02", "type": "user_talking_head", "description": "Creator speaking directly to camera."}},
-                {{"timestamp": "0:07", "type": "movie_clip", "source": "The Incredibles", "description": "Clip of Mr. Incredible."}}
-            ],
-            "funnel_analysis": "...",
-            "core_lesson": "..."
-        }},
-        "hook_brain_analysis": {{
-            "hook_text": "You're telling me, Mr. Incredible, a fucking cartoon...",
-            "hook_format": "spoken_hook",
-            "hook_type": "controversial_claim",
-            "tonality": "Aggressive and incredulous",
-            "emotional_trigger": "Anger"
-        }}
-    }}
-    """
-    response = await model.generate_content_async([prompt, video_file])
-    
-    # NEW, MORE ROBUST PARSING METHOD
-    cleaned_response = response.text.strip().replace("```json", "").replace("```python", "").replace("```", "")
-    
-    print("Deep analysis successful.")
-    
-    # Use ast.literal_eval, which is safer and handles quote variations.
-    try:
-        return ast.literal_eval(cleaned_response)
-    except (ValueError, SyntaxError) as e:
-        print(f"--- PARSING FAILED ---")
-        print(f"Error: {e}")
-        print(f"Raw AI Response:\n{cleaned_response}")
-        raise ValueError("Failed to parse the AI's response into a dictionary.") from e
 
 # THIS IS THE CORRECT AND COMPLETE FUNCTION. REPLACE YOUR OLD ONE WITH THIS.
 async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_own_video):
@@ -546,13 +483,23 @@ bot = discord.Bot()
 @bot.event
 # Replace the old on_ready with this one
 @bot.event
-@bot.event
 async def on_ready():
-    print("--- RUNNING BOT VERSION 4.0 ---") # Or whatever version you like
-    print(f"{bot.user} is ready and online!")
-    # Load the library on startup
-    global GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS
-    GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS = load_intelligence_library()
+    # Check if Migration Mode is enabled via an environment variable
+    if os.getenv('MIGRATE_ON_STARTUP') == 'true':
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        print("!!! MIGRATION MODE DETECTED - STARTING MIGRATION !!!")
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        # Run the migration script
+        await run_migration_script()
+        print("--- MIGRATION SCRIPT FINISHED ---")
+        print("--- Bot will now idle. REMOVE the MIGRATE_ON_STARTUP variable and redeploy. ---")
+    else:
+        # Normal startup logic
+        print("--- RUNNING BOT ---")
+        print(f"{bot.user} is ready and online!")
+        # Load the library from the persistent volume
+        global GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS
+        GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS = load_intelligence_library()
 async def learn(ctx: discord.ApplicationContext):
     try: await ctx.send_modal(LearningForm(title="Teach CoachAI"))
     except discord.errors.NotFound: await ctx.respond("Timing issue. Please try again.", ephemeral=True)
