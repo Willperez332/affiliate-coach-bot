@@ -8,7 +8,6 @@ import time
 import asyncio
 import ast
 from datetime import datetime, timezone
-import copy
 
 # --- NEW IMPORTS ---
 import openai
@@ -50,53 +49,58 @@ def find_best_references(style, gold, public, vanity, duds):
     best_dud = next((v for v in duds if v.get("style", "").lower() == style.lower()), duds[0] if duds else None)
     return best_winner, best_vanity, best_dud
 
-# --- HOOK LEARNING SYSTEM ---
-HOOKS_FILE = "hooks.json"
-
-def load_hooks():
-    if not os.path.exists(HOOKS_FILE):
-        return []
-    with open(HOOKS_FILE, 'r') as f:
-        return json.load(f)
-
-def find_similar_hooks(style, max_results=3):
-    """
-    Return up to `max_results` hooks matching the style, sorted by highest views.
-    """
-    hooks = load_hooks()
-    # Filter by style (case-insensitive)
-    filtered = [h for h in hooks if h.get("style", "").lower() == style.lower()]
-    # Sort by views (desc)
-    filtered.sort(key=lambda h: h.get("views", 0), reverse=True)
-    return filtered[:max_results]
-
-def save_hook(hook_data):
-    hooks = load_hooks()
-    hooks.append(hook_data)
-    with open(HOOKS_FILE, 'w') as f:
-        json.dump(hooks, f, indent=2)
-
 # --- BOT'S BRAIN (DECONSTRUCTION, STRATEGY, AND ANALYSIS) ---
 async def deconstruct_and_summarize(video_file, performance_data):
-    """Performs a deep analysis and distills the core strategy."""
+    """
+    Performs a deep, dual-brain analysis of the entire video and the specific hook.
+    """
     print("Performing deep analysis for library...")
     model = genai.GenerativeModel(model_name="gemini-1.5-flash")
     prompt = f"""
-    You are a master viral video analyst. Your task is to deconstruct the provided video and then, based on the performance data, distill its core strategic lesson.
+    You are a master viral video analyst. Your task is to perform a deep deconstruction of the provided video based on its performance data. You must analyze the video as a whole AND perform a specialized, deep analysis of the video's hook (the first 5-10 seconds).
 
     **PERFORMANCE DATA:**
     {json.dumps(performance_data, indent=2)}
 
-    **YOUR TASK:**
-    1.  **Deconstruct the video:** Provide a full transcript, a visual log with timestamps, and a pacing/energy analysis.
-    2.  **Distill the Core Lesson:** Based on the deconstruction and the performance data, answer this question in 1-2 powerful sentences: **"What is the single most important strategic lesson this video teaches us?"** (e.g., "This video teaches us that a highly controversial hook can generate massive views but fails to convert because it attracts the wrong audience," or "This video proves that a vulnerable, personal story hook builds enough trust to drive high sales even with moderate views.")
+    **YOUR TASK (Output a single structured dictionary):**
 
-    **OUTPUT ONLY A STRUCTURED PYTHON DICTIONARY LITERAL** with the keys: "deconstruction" (containing the full analysis) and "core_lesson".
+    **1. Full Video Deconstruction:**
+       - **full_transcript:** Provide a complete, accurate transcript of the video.
+       - **scene_identification:** Log the visual scenes with timestamps. Identify if a scene is 'user_talking_head', 'screen_recording', 'movie_clip', 'image_insert', etc. For movie/TV clips, identify the source if possible (e.g., 'The Simpsons', 'Wall-E').
+       - **funnel_analysis:** In 2-3 sentences, describe how the video attempts to take a viewer from the hook to the final call-to-action. Analyze its 'organic feel' and how the creator established authority.
+       - **core_lesson:** Based on the performance data, what is the single most important strategic lesson this video teaches us?
+
+    **2. Specialized Hook Analysis ("Hook Brain"):**
+       - **hook_text:** Transcribe the first 5-10 seconds of spoken dialogue.
+       - **hook_format:** Identify the format. Is it a 'visual_hook' (something shown), 'text_hook' (an overlay), 'auditory_hook' (a sound), or 'spoken_hook'?
+       - **hook_type:** Is the hook a 'question', a 'bold_statement', a 'story_lead_in', or a 'controversial_claim'?
+       - **tonality:** Describe the vocal tonality of the hook (e.g., "Urgent and conspiratorial," "Calm and authoritative," "Excited and personal").
+       - **emotional_trigger:** What primary emotion is the hook designed to trigger? (e.g., 'Curiosity', 'Fear', 'Anger', 'Hope', 'FOMO').
+
+    **OUTPUT ONLY A STRUCTURED PYTHON DICTIONARY LITERAL that contains all of these keys.**
+    Example Structure:
+    {{
+        "full_video_deconstruction": {{
+            "full_transcript": "...",
+            "scene_identification": [
+                {{"timestamp": "0:02", "type": "user_talking_head", "description": "Creator speaking directly to camera."}},
+                {{"timestamp": "0:07", "type": "movie_clip", "source": "The Incredibles", "description": "Clip of Mr. Incredible."}}
+            ],
+            "funnel_analysis": "...",
+            "core_lesson": "..."
+        }},
+        "hook_brain_analysis": {{
+            "hook_text": "You're telling me, Mr. Incredible, a fucking cartoon...",
+            "hook_format": "spoken_hook",
+            "hook_type": "controversial_claim",
+            "tonality": "Aggressive and incredulous",
+            "emotional_trigger": "Anger"
+        }}
+    }}
     """
     response = await model.generate_content_async([prompt, video_file])
     
-    # --- NEW, MORE ROBUST PARSING METHOD ---
-    # First, remove the markdown fences.
+    # NEW, MORE ROBUST PARSING METHOD
     cleaned_response = response.text.strip().replace("```json", "").replace("```python", "").replace("```", "")
     
     print("Deep analysis successful.")
@@ -108,7 +112,82 @@ async def deconstruct_and_summarize(video_file, performance_data):
         print(f"--- PARSING FAILED ---")
         print(f"Error: {e}")
         print(f"Raw AI Response:\n{cleaned_response}")
-        raise ValueError("Failed to parse the AI's response into a dictionary.") from e
+        raise ValueError("Failed to parse the AI's response into a dictionary.") from e```
+
+#### **Step 2: Simplify the Learning Task to Use the New Brain**
+
+Now that our deconstruction function is so powerful, the `/learn` command's task becomes much simpler. It just needs to call the new brain and save its output to a single library file. We will remove the old, separate hook-saving logic completely.
+
+**Action:** Replace your entire `run_learning_task` function with this simplified version.
+
+```python
+async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_own_video):
+    try:
+        temp_filename = f"temp_video_{uuid.uuid4()}.mp4"
+        uploaded_file = None
+        try:
+            print(f"Downloading video for learning: {video_url}")
+            ydl_opts = {'outtmpl': temp_filename, 'format': 'mp4'}
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl: ydl.download([video_url])
+            
+            print(f"Uploading {temp_filename} for deep analysis...")
+            uploaded_file = genai.upload_file(path=temp_filename)
+            while uploaded_file.state.name == "PROCESSING":
+                time.sleep(10)
+                uploaded_file = genai.get_file(name=uploaded_file.name)
+            if uploaded_file.state.name != "ACTIVE":
+                raise ValueError(f"File {uploaded_file.name} failed to process.")
+            
+            video_file = uploaded_file
+            performance_data = {"views": views, "sales_gmv": sales_gmv}
+            # --- Call the new, powerful deconstruction function ---
+            analysis_data = await deconstruct_and_summarize(video_file, performance_data)
+        finally:
+            if uploaded_file:
+                genai.delete_file(name=uploaded_file.name)
+            if os.path.exists(temp_filename):
+                os.remove(temp_filename)
+
+        # --- The entire analysis is now saved in one place ---
+        entry_data = {
+            "name": f"New Entry ({style})",
+            "style": style,
+            "video_url": video_url,
+            "views": views,
+            "sales_gmv": sales_gmv,
+            "analysis": analysis_data # All the rich data from our new function
+        }
+        
+        # Determine the file category based on performance
+        file_prefix = "library_dud_loser_"
+        if is_own_video:
+            gmv_per_1k_views = (sales_gmv / views) * 1000 if views > 0 else 0
+            if gmv_per_1k_views > 20 or sales_gmv > 10000:
+                file_prefix = "library_gold_winner_"
+            elif views > 500000:
+                file_prefix = "library_vanity_loser_"
+        else: 
+            if views > 500000:
+                file_prefix = "library_public_winner_"
+        
+        file_name = f"{file_prefix}{uuid.uuid4()}.json"
+        print(f"--- SAVING NEW DATA ({file_prefix}) ---")
+        with open(file_name, 'w') as f:
+            json.dump(entry_data, f, indent=2)
+            
+        # Reload the library with the new data
+        global GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS
+        GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS = load_intelligence_library()
+        
+        await interaction.followup.send(
+            f"Success! I've deeply analyzed and saved the new performance data. My intelligence has been upgraded.",
+            ephemeral=True)
+            
+    except Exception as e:
+        print(f"Error in learning background task: {e}")
+        await interaction.followup.send(
+            "A critical error occurred during the learning process. Please check the logs.",
+            ephemeral=True)
 
 async def generate_coaching_report(deconstruction, style, views):
     print("Generating strategic coaching report with GPT-4o...")
