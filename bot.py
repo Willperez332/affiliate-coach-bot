@@ -188,7 +188,7 @@ No fluff, no repetition, no jargon—just real, creator-friendly feedback.
                 {"role": "user", "content": user_prompt}
             ]
         )
-            coaching_feedback = response.choices[0].message.content
+        coaching_feedback = response.choices[0].message.content
 
     # --- Add Hook Brain Suggestions ---
     similar_hooks = find_similar_hooks(style)
