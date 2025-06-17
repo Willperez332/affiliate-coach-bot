@@ -8,7 +8,6 @@ import time
 import asyncio
 import ast
 from datetime import datetime, timezone
-from migrate_library import main as run_migration_script
 DATA_DIR = "/data"
 
 # --- NEW IMPORTS ---
@@ -547,24 +546,13 @@ bot = discord.Bot()
 @bot.event
 # Replace the old on_ready with this one
 @bot.event
+@bot.event
 async def on_ready():
-    # Check if Migration Mode is enabled
-    if os.getenv('MIGRATE_ON_STARTUP') == 'true':
-        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        print("!!! MIGRATION MODE DETECTED - STARTING MIGRATION !!!")
-        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        # Run the migration script
-        await run_migration_script()
-        print("--- MIGRATION SCRIPT FINISHED ---")
-        print("--- Bot will now idle. REMOVE the MIGRATE_ON_STARTUP variable and redeploy. ---")
-    else:
-        # Normal startup logic
-        print("--- RUNNING BOT VERSION 4.0 ---")
-        print(f"{bot.user} is ready and online!")
-        # Load the library on normal startup
-        global GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS
-        GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS = load_intelligence_library()
-@bot.slash_command(name="learn", description="Teach the AI new performance data.")
+    print("--- RUNNING BOT VERSION 4.0 ---") # Or whatever version you like
+    print(f"{bot.user} is ready and online!")
+    # Load the library on startup
+    global GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS
+    GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS = load_intelligence_library()
 async def learn(ctx: discord.ApplicationContext):
     try: await ctx.send_modal(LearningForm(title="Teach CoachAI"))
     except discord.errors.NotFound: await ctx.respond("Timing issue. Please try again.", ephemeral=True)
