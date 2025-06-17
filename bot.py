@@ -125,6 +125,8 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
     try:
         temp_filename = f"temp_video_{uuid.uuid4()}.mp4"
         uploaded_file = None
+        
+        # This inner try...finally handles the file operations and ensures cleanup
         try:
             print(f"Downloading video for learning: {video_url}")
             ydl_opts = {'outtmpl': temp_filename, 'format': 'mp4'}
@@ -140,8 +142,6 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
             
             video_file = uploaded_file
             performance_data = {"views": views, "sales_gmv": sales_gmv}
-            
-            # --- This calls the new "Dual Brain" function ---
             analysis_data = await deconstruct_and_summarize(video_file, performance_data)
         finally:
             if uploaded_file:
@@ -149,17 +149,16 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
             if os.path.exists(temp_filename):
                 os.remove(temp_filename)
 
-        # --- This correctly saves the new V2 data structure under the "analysis" key ---
+        # This logic runs AFTER the inner try...finally has completed successfully
         entry_data = {
             "name": f"New Entry ({style})",
             "style": style,
             "video_url": video_url,
             "views": views,
             "sales_gmv": sales_gmv,
-            "analysis": analysis_data # This line is the key fix.
+            "analysis": analysis_data
         }
         
-        # Determine the file category based on performance
         file_prefix = "library_dud_loser_"
         if is_own_video:
             gmv_per_1k_views = (sales_gmv / views) * 1000 if views > 0 else 0
@@ -171,12 +170,12 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
             if views > 500000:
                 file_prefix = "library_public_winner_"
         
-    file_name = os.path.join(DATA_DIR, f"{file_prefix}{uuid.uuid4()}.json")
-    print(f"--- SAVING NEW DATA ({file_prefix}) to {file_name} ---")
-    with open(file_name, 'w') as f:
-        json.dump(entry_data, f, indent=2)
+        # This now builds the full path to save the file inside the /data volume
+        file_name = os.path.join(DATA_DIR, f"{file_prefix}{uuid.uuid4()}.json")
+        print(f"--- SAVING NEW DATA ({file_prefix}) to {file_name} ---")
+        with open(file_name, 'w') as f:
+            json.dump(entry_data, f, indent=2)
             
-        # Reload the library with the new data
         global GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS
         GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS = load_intelligence_library()
         
@@ -184,13 +183,12 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
             f"Success! I've deeply analyzed and saved the new performance data. My intelligence has been upgraded.",
             ephemeral=True)
             
+    # This 'except' block partners with the main 'try' block at the top
     except Exception as e:
         print(f"Error in learning background task: {e}")
         await interaction.followup.send(
             "A critical error occurred during the learning process. Please check the logs.",
             ephemeral=True)
-
-# Important: Make sure the old functions `load_hooks`, `find_similar_hooks`, and `save_hook` are also deleted, as they are no longer used.
 
 async def generate_coaching_report(deconstruction, style, views):
     print("Generating strategic coaching report with GPT-4o...")
