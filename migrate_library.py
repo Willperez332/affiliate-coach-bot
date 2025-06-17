@@ -2,7 +2,8 @@
 import os
 import json
 import asyncio
-from bot import deconstruct_and_summarize, DATA_DIR, genai, yt_dlp  # Import the brain and config from our bot
+from brain import deconstruct_and_summarize # Import from the new brain file
+from bot import DATA_DIR, genai, yt_dlp # Import only what's left
 
 async def migrate_file(filename):
     """
