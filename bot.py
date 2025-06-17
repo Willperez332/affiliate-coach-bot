@@ -116,8 +116,6 @@ async def deconstruct_and_summarize(video_file, performance_data):
 
 #### **Step 2: Simplify the Learning Task to Use the New Brain**
 
-Now that our deconstruction function is so powerful, the `/learn` command's task becomes much simpler. It just needs to call the new brain and save its output to a single library file. We will remove the old, separate hook-saving logic completely.
-
 **Action:** Replace your entire `run_learning_task` function with this simplified version.
 
 ```python
