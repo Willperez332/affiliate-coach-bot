@@ -526,6 +526,7 @@ bot = discord.Bot()
 async def on_ready():
     print("--- RUNNING BOT ---")
     print(f"{bot.user} is ready and online!")
+    # Load the library from the persistent volume on startup
     global GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS
     GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS = load_intelligence_library()
 async def learn(ctx: discord.ApplicationContext):
