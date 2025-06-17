@@ -8,6 +8,7 @@ import time
 import asyncio
 import ast
 from datetime import datetime, timezone
+DATA_DIR = "/data"
 
 # --- NEW IMPORTS ---
 import openai
@@ -32,14 +33,19 @@ genai.configure(api_key=GOOGLE_API_KEY)
 def load_intelligence_library():
     gold_winners, public_winners, vanity_losers, dud_losers = [], [], [], []
     print("Loading Performance Quadrant Library...")
-    for filename in os.listdir('.'):
-        if filename.startswith("library_gold_winner_"): gold_winners.append(json.load(open(filename, 'r')))
-        elif filename.startswith("library_public_winner_"): public_winners.append(json.load(open(filename, 'r')))
-        elif filename.startswith("library_vanity_loser_"): vanity_losers.append(json.load(open(filename, 'r')))
-        elif filename.startswith("library_dud_loser_"): dud_losers.append(json.load(open(filename, 'r')))
+    # Check if the data directory exists before trying to list files
+    if not os.path.exists(DATA_DIR):
+        print(f"Warning: Data directory '{DATA_DIR}' not found. Creating it.")
+        os.makedirs(DATA_DIR)
+    
+    for filename in os.listdir(DATA_DIR):
+        full_path = os.path.join(DATA_DIR, filename) # Build the full path
+        if filename.startswith("library_gold_winner_"): gold_winners.append(json.load(open(full_path, 'r')))
+        elif filename.startswith("library_public_winner_"): public_winners.append(json.load(open(full_path, 'r')))
+        elif filename.startswith("library_vanity_loser_"): vanity_losers.append(json.load(open(full_path, 'r')))
+        elif filename.startswith("library_dud_loser_"): dud_losers.append(json.load(open(full_path, 'r')))
     print(f"Library loaded with {len(gold_winners)} Gold, {len(public_winners)} Public, {len(vanity_losers)} Vanity, and {len(dud_losers)} Dud Losers.")
     return gold_winners, public_winners, vanity_losers, dud_losers
-GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS = load_intelligence_library()
 
 # --- INTELLIGENT MATCHING ---
 def find_best_references(style, gold, public, vanity, duds):
@@ -165,10 +171,10 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
             if views > 500000:
                 file_prefix = "library_public_winner_"
         
-        file_name = f"{file_prefix}{uuid.uuid4()}.json"
-        print(f"--- SAVING NEW DATA ({file_prefix}) ---")
-        with open(file_name, 'w') as f:
-            json.dump(entry_data, f, indent=2)
+    file_name = os.path.join(DATA_DIR, f"{file_prefix}{uuid.uuid4()}.json")
+    print(f"--- SAVING NEW DATA ({file_prefix}) to {file_name} ---")
+    with open(file_name, 'w') as f:
+        json.dump(entry_data, f, indent=2)
             
         # Reload the library with the new data
         global GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS
