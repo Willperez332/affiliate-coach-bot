@@ -1,4 +1,4 @@
-discord
+py-cord
 openai
 google-generativeai
 yt-dlp
