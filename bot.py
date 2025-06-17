@@ -58,6 +58,17 @@ def load_hooks():
     with open(HOOKS_FILE, 'r') as f:
         return json.load(f)
 
+def find_similar_hooks(style, max_results=3):
+    """
+    Return up to `max_results` hooks matching the style, sorted by highest views.
+    """
+    hooks = load_hooks()
+    # Filter by style (case-insensitive)
+    filtered = [h for h in hooks if h.get("style", "").lower() == style.lower()]
+    # Sort by views (desc)
+    filtered.sort(key=lambda h: h.get("views", 0), reverse=True)
+    return filtered[:max_results]
+
 def save_hook(hook_data):
     hooks = load_hooks()
     hooks.append(hook_data)
@@ -177,7 +188,25 @@ No fluff, no repetition, no jargon—just real, creator-friendly feedback.
                 {"role": "user", "content": user_prompt}
             ]
         )
-        return response.choices[0].message.content
+            coaching_feedback = response.choices[0].message.content
+
+    # --- Add Hook Brain Suggestions ---
+    similar_hooks = find_similar_hooks(style)
+    if similar_hooks:
+        hook_examples = "\n".join([
+            f"- \"{h['hook_text']}\" (Views: {h['views']})"
+            for h in similar_hooks if h.get('hook_text')
+        ])
+        hook_tip = (
+            f"\n\n### 🔥 Proven Hook Examples ({style.title()}):\n"
+            f"{hook_examples}\n"
+            "Steal inspiration from these: notice their tone, structure, and first few seconds."
+        )
+    else:
+        hook_tip = ""
+
+    return coaching_feedback + hook_tip
+
     except Exception as e:
         print(f"Error generating report with GPT-4o: {e}")
         return f"An error occurred while generating the coaching report with GPT-4o: {e}"
