@@ -114,103 +114,81 @@ async def generate_coaching_report(deconstruction, style, views):
     print("Generating strategic coaching report with GPT-4o...")
     winner_ref, vanity_ref, dud_ref = find_best_references(style, GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS)
 
-    if not winner_ref: return "Error: Winners Library is empty. Use /learn to teach me first."
-    
+    if not winner_ref: 
+        return "Error: Winners Library is empty. Use /learn to teach me first.", ""
+
     winner_text = json.dumps(winner_ref, indent=2)
     vanity_text = json.dumps(vanity_ref, indent=2) if vanity_ref else "N/A"
     dud_text = json.dumps(dud_ref, indent=2) if dud_ref else "N/A"
     deconstruction_text = json.dumps(deconstruction, indent=2)
 
-    # Note the change to OpenAI's required message format
-    system_prompt = "You are CoachAI, an elite TikTok Shop performance marketing coach. Your analysis is sharp, direct, and backed by a library of real performance data. Your primary mandate is to help creators create videos that are **both viral AND profitable.**"
+    system_prompt = (
+        "You are CoachAI, an elite TikTok Shop performance marketing coach. "
+        "Keep output clean and engaging, with short, direct bullets."
+    )
     
-    user_prompt = f"""
-**YOUR KNOWLEDGE BASE:**
-- Proven Winner From Market Data: {winner_text}
+    # TWO PROMPTS: Main (summary), Expand (full)
+    user_prompt_main = f"""
+**YOUR KNOWLEDGE BASE:** (summarized below)
+- Proven Winner: {winner_text}
 - Vanity Performer: {vanity_text}
 - Underperformer: {dud_text}
 - Creator's Video Deconstruction: {deconstruction_text}
 - Intended Video Style: {style}
 
 **YOUR TASK:**
-Reply in a simple, easy-to-skim format.
-For each section, use MAX 2 sentences per bullet. Focus only on what matters most.
-No fluff, no repetition, no jargon—just real, creator-friendly feedback.
+1. Write a Quick Video Review (2-3 concise, non-repetitive sentences: What’s the main barrier to viral sales success? What’s 1 strong opportunity?).
+2. Write a Creative Brainstorm section: 
+    - 2 hook ideas (1 sharp, 1 story-based)
+    - 1 “Script Insight” (where to add a new line or improve)
+    - 1 style tip for {style}
+NO full breakdowns. DO NOT mention “Gold Winner.” Just pure, creator-friendly feedback. Make it feel like a real creator wrote it.
+    """
 
----
-### 🧠 **Quick Video Review**
-- **First Impression:** (1 short sentence: What's the #1 thing holding this video back from going viral & converting?)
+    user_prompt_expand = f"""
+**YOUR KNOWLEDGE BASE:** (summarized below)
+- Proven Winner: {winner_text}
+- Vanity Performer: {vanity_text}
+- Underperformer: {dud_text}
+- Creator's Video Deconstruction: {deconstruction_text}
+- Intended Video Style: {style}
 
----
-### **AIDA-F (Rapid Fire Feedback)**
-
-**Attention (Hook):**
-- ✅ Good: (Best thing about the hook)
-- 🚩 Bad: (Main issue, keep it short)
-- 🛠️ Fix: (One actionable, specific change. Reference winning video if relevant.)
-
-**Interest (Story/Problem):**
-- ✅ Good:
-- 🚩 Bad:
-- 🛠️ Fix:
-
-**Desire (Solution/Proof):**
-- ✅ Good:
-- 🚩 Bad:
-- 🛠️ Fix:
-
-**Action (CTA):**
-- ✅ Good:
-- 🚩 Bad:
-- 🛠️ Fix:
-
-**Frame (Vibe):**
-- ✅ Good:
-- 🚩 Bad:
-- 🛠️ Fix:
-
----
-### **Creative Brainstorm**
-- **Improved Hook:** (Rewrite the creator’s hook—scroll-stopping, fits their style)
-- **Script Insight:** (Pinpoint *where* in the video to add a new line or fix something—be specific, e.g. “Right after the first testimonial, add…”)
-- **Style Tip:** (Share one creative trick that top {style} videos use)
-
----
-### **Final Thought**
-(Finish with one unique, motivational quote for creators. Never repeat.)
-"""
-
+**YOUR TASK:**
+Write ONLY the AIDA-F (Rapid Fire Feedback) section for this creator:
+- Attention (Hook)
+- Interest (Story/Problem)
+- Desire (Solution/Proof)
+- Action (CTA)
+- Frame (Vibe)
+2 bullets each: 1 “✅ Good”, 1 “🚩 Bad”, 1 “🛠️ Fix”. Use plain language.
+    """
 
     try:
-        response = await client.chat.completions.create(
+        # Get main (summary) output
+        main_resp = await client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+                {"role": "user", "content": user_prompt_main}
             ]
         )
-        coaching_feedback = response.choices[0].message.content
+        main_feedback = main_resp.choices[0].message.content.strip()
 
-        # --- Add Hook Brain Suggestions ---
-        similar_hooks = find_similar_hooks(style)
-        if similar_hooks:
-            hook_examples = "\n".join([
-                f"- \"{h['hook_text']}\" (Views: {h['views']})"
-                for h in similar_hooks if h.get('hook_text')
-            ])
-            hook_tip = (
-                f"\n\n### 🔥 Proven Hook Examples ({style.title()}):\n"
-                f"{hook_examples}\n"
-                "Steal inspiration from these: notice their tone, structure, and first few seconds."
-            )
-        else:
-            hook_tip = ""
+        # Get expand (full) output
+        expand_resp = await client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt_expand}
+            ]
+        )
+        expand_feedback = expand_resp.choices[0].message.content.strip()
 
-        return coaching_feedback + hook_tip
+        return main_feedback, expand_feedback
 
     except Exception as e:
         print(f"Error generating report with GPT-4o: {e}")
-        return f"An error occurred while generating the coaching report with GPT-4o: {e}"
+        return None, f"An error occurred while generating the coaching report with GPT-4o: {e}"
 
 async def deconstruct_video(video_file, transcript):
     """
@@ -385,52 +363,55 @@ async def process_video(video_url):
 # --- Background Task Runners ---
 
 async def run_coaching_task(interaction, video_url, style, views):
-    # --- Start by sending the first status message ---
     status_message = await interaction.followup.send("`[■□□□]` 🧠 Kicking off analysis...", wait=True)
 
     try:
-        # --- Update status before the heavy lifting ---
         await status_message.edit(content="`[■■□□]` 🎥 Downloading & Deconstructing Video...")
         deconstruction = await process_video(video_url)
-
-        # Check for errors from the processing step
         if deconstruction.get("error"):
             await status_message.edit(content=f"Analysis failed during video processing: {deconstruction['details']}")
             return
 
-        # --- Update status again before the AI report generation ---
         await status_message.edit(content="`[■■■□]` ✍️ Generating Your Coaching Report with GPT-4o...")
-        analysis_report = await generate_coaching_report(deconstruction, style, views)
+        main_feedback, expand_feedback = await generate_coaching_report(deconstruction, style, views)
 
-        # --- Final success message and report delivery ---
         await status_message.edit(content="`[■■■■]` ✅ Analysis Complete! Your report is being delivered below.")
         
         thread = await interaction.channel.create_thread(
             name=f"Coaching for {interaction.user.display_name}",
             type=discord.ChannelType.public_thread
         )
-        if analysis_report:
-            video_header = f"🎥 **Video:** {video_url}\n\n"
-            full_report = video_header + analysis_report
 
-            # Split into <=2000 character chunks, *without* breaking words mid-line
-            chunks = []
-            while len(full_report) > 0:
-                if len(full_report) <= 2000:
-                    chunks.append(full_report)
-                    break
-                split_at = full_report.rfind('\n', 0, 2000)
-                if split_at == -1:
-                    split_at = 2000
-                chunks.append(full_report[:split_at])
-                full_report = full_report[split_at:].lstrip('\n')
-            
-            for chunk in chunks:
+        # 1. Video link by itself
+        await thread.send(f"🎥 **Video:** {video_url}")
+
+        # 2. Main feedback (quick review + brainstorm)
+        if main_feedback:
+            for chunk in split_message(main_feedback):
+                await thread.send(chunk)
+
+        # 3. Expand section (full AIDA-F)
+        if expand_feedback:
+            await thread.send("**Expand for full breakdown ↓**")
+            for chunk in split_message(expand_feedback):
                 await thread.send(chunk)
     except Exception as e:
         print(f"Error in coaching background task: {e}")
-        # Update the status message with the error
         await status_message.edit(content=f"A critical error occurred: {e}")
+
+# Utility function to chunk long messages
+def split_message(text, chunk_size=1900):
+    chunks = []
+    while text:
+        if len(text) <= chunk_size:
+            chunks.append(text)
+            break
+        split_at = text.rfind('\n', 0, chunk_size)
+        if split_at == -1:
+            split_at = chunk_size
+        chunks.append(text[:split_at])
+        text = text[split_at:].lstrip('\n')
+    return chunks
 
 async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_own_video):
     try:
