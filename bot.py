@@ -555,4 +555,5 @@ async def learn(ctx: discord.ApplicationContext):
 async def coachme(ctx: discord.ApplicationContext):
     try: await ctx.send_modal(CoachingForm(title="Final AI Coach Submission"))
     except discord.errors.NotFound: await ctx.respond("Timing issue. Please try again.", ephemeral=True)
-bot.run(DISCORD_TOKEN)
+if __name__ == "__main__":
+    bot.run(DISCORD_TOKEN)
