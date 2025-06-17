@@ -116,8 +116,6 @@ async def deconstruct_and_summarize(video_file, performance_data):
 
 #### **Step 2: Simplify the Learning Task to Use the New Brain**
 
-**Action:** Replace your entire `run_learning_task` function with this simplified version.
-
 ```python
 async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_own_video):
     try:
