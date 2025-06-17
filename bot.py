@@ -615,7 +615,9 @@ class CoachingForm(discord.ui.Modal):
 # --- BOT SETUP AND COMMANDS ---
 bot = discord.Bot()
 @bot.event
-async def on_ready(): print(f"{bot.user} is ready and online!")
+async def on_ready():
+    print("--- RUNNING BOT VERSION 4.0 ---") # Use a high version number to be sure
+    print(f"{bot.user} is ready and online!")
 @bot.slash_command(name="learn", description="Teach the AI new performance data.")
 async def learn(ctx: discord.ApplicationContext):
     try: await ctx.send_modal(LearningForm(title="Teach CoachAI"))
