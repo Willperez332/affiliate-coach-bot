@@ -143,14 +143,14 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
             if os.path.exists(temp_filename):
                 os.remove(temp_filename)
 
-        # --- The entire analysis is now saved in one place ---
+        # --- The entire analysis is now saved in one place under a single key ---
         entry_data = {
             "name": f"New Entry ({style})",
             "style": style,
             "video_url": video_url,
             "views": views,
             "sales_gmv": sales_gmv,
-            "analysis": analysis_data # All the rich data from our new function
+            "analysis": analysis_data # This is the corrected part
         }
         
         # Determine the file category based on performance
