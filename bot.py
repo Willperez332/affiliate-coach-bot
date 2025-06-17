@@ -112,7 +112,7 @@ async def deconstruct_and_summarize(video_file, performance_data):
         print(f"--- PARSING FAILED ---")
         print(f"Error: {e}")
         print(f"Raw AI Response:\n{cleaned_response}")
-        raise ValueError("Failed to parse the AI's response into a dictionary.") from e```
+        raise ValueError("Failed to parse the AI's response into a dictionary.") from e
 
 #### **Step 2: Simplify the Learning Task to Use the New Brain**
 
