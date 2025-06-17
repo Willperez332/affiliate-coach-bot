@@ -114,8 +114,7 @@ async def deconstruct_and_summarize(video_file, performance_data):
         print(f"Raw AI Response:\n{cleaned_response}")
         raise ValueError("Failed to parse the AI's response into a dictionary.") from e
 
-#### **Step 2: Simplify the Learning Task to Use the New Brain**
-
+# THIS IS THE CORRECT AND COMPLETE FUNCTION. REPLACE YOUR OLD ONE WITH THIS.
 async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_own_video):
     try:
         temp_filename = f"temp_video_{uuid.uuid4()}.mp4"
@@ -135,7 +134,8 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
             
             video_file = uploaded_file
             performance_data = {"views": views, "sales_gmv": sales_gmv}
-            # --- Call the new, powerful deconstruction function ---
+            
+            # --- This calls the new "Dual Brain" function ---
             analysis_data = await deconstruct_and_summarize(video_file, performance_data)
         finally:
             if uploaded_file:
@@ -143,14 +143,14 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
             if os.path.exists(temp_filename):
                 os.remove(temp_filename)
 
-        # --- The entire analysis is now saved in one place under a single key ---
+        # --- This correctly saves the new V2 data structure under the "analysis" key ---
         entry_data = {
             "name": f"New Entry ({style})",
             "style": style,
             "video_url": video_url,
             "views": views,
             "sales_gmv": sales_gmv,
-            "analysis": analysis_data # This is the corrected part
+            "analysis": analysis_data # This line is the key fix.
         }
         
         # Determine the file category based on performance
@@ -183,6 +183,8 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
         await interaction.followup.send(
             "A critical error occurred during the learning process. Please check the logs.",
             ephemeral=True)
+
+# Important: Make sure the old functions `load_hooks`, `find_similar_hooks`, and `save_hook` are also deleted, as they are no longer used.
 
 async def generate_coaching_report(deconstruction, style, views):
     print("Generating strategic coaching report with GPT-4o...")
@@ -487,6 +489,7 @@ def split_message(text, chunk_size=1900):
         text = text[split_at:].lstrip('\n')
     return chunks
 
+# THIS IS THE CORRECT AND COMPLETE FUNCTION. REPLACE YOUR OLD ONE WITH THIS.
 async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_own_video):
     try:
         temp_filename = f"temp_video_{uuid.uuid4()}.mp4"
@@ -495,6 +498,7 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
             print(f"Downloading video for learning: {video_url}")
             ydl_opts = {'outtmpl': temp_filename, 'format': 'mp4'}
             with yt_dlp.YoutubeDL(ydl_opts) as ydl: ydl.download([video_url])
+            
             print(f"Uploading {temp_filename} for deep analysis...")
             uploaded_file = genai.upload_file(path=temp_filename)
             while uploaded_file.state.name == "PROCESSING":
@@ -505,6 +509,8 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
             
             video_file = uploaded_file
             performance_data = {"views": views, "sales_gmv": sales_gmv}
+            
+            # This calls the new "Dual Brain" function
             analysis_data = await deconstruct_and_summarize(video_file, performance_data)
         finally:
             if uploaded_file:
@@ -512,16 +518,17 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
             if os.path.exists(temp_filename):
                 os.remove(temp_filename)
 
+        # This correctly saves the new V2 data structure under the "analysis" key
         entry_data = {
             "name": f"New Entry ({style})",
             "style": style,
             "video_url": video_url,
             "views": views,
             "sales_gmv": sales_gmv,
-            "deconstruction": analysis_data["deconstruction"],
-            "core_lesson": analysis_data["core_lesson"]
+            "analysis": analysis_data # This is the unified data object
         }
         
+        # Determine the file category based on performance
         file_prefix = "library_dud_loser_"
         if is_own_video:
             gmv_per_1k_views = (sales_gmv / views) * 1000 if views > 0 else 0
@@ -538,47 +545,15 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
         with open(file_name, 'w') as f:
             json.dump(entry_data, f, indent=2)
             
+        # Reload the library with the new data
         global GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS
         GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS = load_intelligence_library()
         
-# ---- Hook Extraction and Save (HOOK BRAIN) ----
-        hook_data = {
-            "timestamp": datetime.now(datetime.UTC).isoformat(),
-            "style": style,
-            "video_url": video_url,
-            "views": views,
-            "sales_gmv": sales_gmv,
-            "hook_text": None,
-            "hook_analysis": None,
-            "full_entry": copy.deepcopy(entry_data)
-        }
-
-        # Try to auto-extract hook info if available
-        decon = analysis_data.get("deconstruction", {})
-        transcript = decon.get("transcript", "")
-        if transcript:
-            # Extract the first 10 seconds or first 1-2 sentences (can adjust logic)
-            lines = transcript.split('\n')
-            hook_candidate = ""
-            for line in lines:
-                if len(hook_candidate) < 300:
-                    hook_candidate += line.strip() + " "
-                else:
-                    break
-            hook_data["hook_text"] = hook_candidate.strip()
-
-        # Optionally save more hook analysis if your deconstruction provides it
-        hook_data["hook_analysis"] = decon.get("visual_log", [])  # or other info
-
-        # Save to hooks.json
-        hooks = load_hooks()
-        hooks.append(hook_data)
-        with open(HOOKS_FILE, 'w') as f:
-            json.dump(hooks, f, indent=2)
-        
+        # This is the correct success message
         await interaction.followup.send(
             f"Success! I've deeply analyzed and saved the new performance data. My intelligence has been upgraded.",
             ephemeral=True)
+            
     except Exception as e:
         print(f"Error in learning background task: {e}")
         await interaction.followup.send(
