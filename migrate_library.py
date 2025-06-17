@@ -101,3 +101,6 @@ async def main():
     print("\n===== MIGRATION COMPLETE =====")
     print(f"Successfully migrated: {success_count}")
     print(f"Failed to migrate:    {failure_count}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
