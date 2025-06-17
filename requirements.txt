@@ -1,7 +1,7 @@
-discord\
-openai\
-google-generativeai\
-yt-dlp\
-pydub\
-python-dotenv\
-ffmpeg-python}
+discord
+openai
+google-generativeai
+yt-dlp
+pydub
+python-dotenv
+ffmpeg-python
