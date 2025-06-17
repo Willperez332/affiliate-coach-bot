@@ -180,36 +180,36 @@ No fluff, no repetition, no jargon—just real, creator-friendly feedback.
 """
 
 
-try:
-    response = await client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
-    )
-    coaching_feedback = response.choices[0].message.content
-
-    # --- Add Hook Brain Suggestions ---
-    similar_hooks = find_similar_hooks(style)
-    if similar_hooks:
-        hook_examples = "\n".join([
-            f"- \"{h['hook_text']}\" (Views: {h['views']})"
-            for h in similar_hooks if h.get('hook_text')
-        ])
-        hook_tip = (
-            f"\n\n### 🔥 Proven Hook Examples ({style.title()}):\n"
-            f"{hook_examples}\n"
-            "Steal inspiration from these: notice their tone, structure, and first few seconds."
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
         )
-    else:
-        hook_tip = ""
+        coaching_feedback = response.choices[0].message.content
 
-    return coaching_feedback + hook_tip
+        # --- Add Hook Brain Suggestions ---
+        similar_hooks = find_similar_hooks(style)
+        if similar_hooks:
+            hook_examples = "\n".join([
+                f"- \"{h['hook_text']}\" (Views: {h['views']})"
+                for h in similar_hooks if h.get('hook_text')
+            ])
+            hook_tip = (
+                f"\n\n### 🔥 Proven Hook Examples ({style.title()}):\n"
+                f"{hook_examples}\n"
+                "Steal inspiration from these: notice their tone, structure, and first few seconds."
+            )
+        else:
+            hook_tip = ""
 
-except Exception as e:
-    print(f"Error generating report with GPT-4o: {e}")
-    return f"An error occurred while generating the coaching report with GPT-4o: {e}"
+        return coaching_feedback + hook_tip
+
+    except Exception as e:
+        print(f"Error generating report with GPT-4o: {e}")
+        return f"An error occurred while generating the coaching report with GPT-4o: {e}"
 
 async def deconstruct_video(video_file, transcript):
     """
