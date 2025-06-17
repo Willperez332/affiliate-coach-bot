@@ -520,8 +520,7 @@ class CoachingForm(discord.ui.Modal):
 
 # --- BOT SETUP AND COMMANDS ---
 bot = discord.Bot()
-@bot.event
-# Replace the old on_ready with this one
+
 @bot.event
 async def on_ready():
     print("--- RUNNING BOT ---")
@@ -529,12 +528,17 @@ async def on_ready():
     # Load the library from the persistent volume on startup
     global GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS
     GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS = load_intelligence_library()
+
+# --- PASTE THE MISSING CODE HERE ---
+@bot.slash_command(name="learn", description="Teach the AI new performance data.")
 async def learn(ctx: discord.ApplicationContext):
     try: await ctx.send_modal(LearningForm(title="Teach CoachAI"))
     except discord.errors.NotFound: await ctx.respond("Timing issue. Please try again.", ephemeral=True)
+# ------------------------------------
+
 @bot.slash_command(name="coachme", description="Get your TikTok video analyzed by the AI Coach.")
 async def coachme(ctx: discord.ApplicationContext):
     try: await ctx.send_modal(CoachingForm(title="Final AI Coach Submission"))
     except discord.errors.NotFound: await ctx.respond("Timing issue. Please try again.", ephemeral=True)
-if __name__ == "__main__":
-    bot.run(DISCORD_TOKEN)
+
+bot.run(DISCORD_TOKEN)
