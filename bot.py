@@ -30,23 +30,27 @@ GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 genai.configure(api_key=GOOGLE_API_KEY)
 
 # --- V29 UPGRADE: THE FOUR QUADRANT LIBRARY ---
+# Replace your existing function with this one
 def load_intelligence_library():
     gold_winners, public_winners, vanity_losers, dud_losers = [], [], [], []
     print("Loading Performance Quadrant Library...")
-    # Check if the data directory exists before trying to list files
+    
+    # --- DEBUG LINE ---
+    print(f"DEBUG: Attempting to read from directory: '{DATA_DIR}'")
+
     if not os.path.exists(DATA_DIR):
         print(f"Warning: Data directory '{DATA_DIR}' not found. Creating it.")
         os.makedirs(DATA_DIR)
-    
+        
     for filename in os.listdir(DATA_DIR):
-        full_path = os.path.join(DATA_DIR, filename) # Build the full path
+        full_path = os.path.join(DATA_DIR, filename)
         if filename.startswith("library_gold_winner_"): gold_winners.append(json.load(open(full_path, 'r')))
         elif filename.startswith("library_public_winner_"): public_winners.append(json.load(open(full_path, 'r')))
         elif filename.startswith("library_vanity_loser_"): vanity_losers.append(json.load(open(full_path, 'r')))
         elif filename.startswith("library_dud_loser_"): dud_losers.append(json.load(open(full_path, 'r')))
     print(f"Library loaded with {len(gold_winners)} Gold, {len(public_winners)} Public, {len(vanity_losers)} Vanity, and {len(dud_losers)} Dud Losers.")
     return gold_winners, public_winners, vanity_losers, dud_losers
-
+    
 # --- INTELLIGENT MATCHING ---
 def find_best_references(style, gold, public, vanity, duds):
     best_winner = next((v for v in gold if v.get("style", "").lower() == style.lower()), gold[0] if gold else None)
@@ -125,8 +129,6 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
     try:
         temp_filename = f"temp_video_{uuid.uuid4()}.mp4"
         uploaded_file = None
-        
-        # This inner try...finally handles the file operations and ensures cleanup
         try:
             print(f"Downloading video for learning: {video_url}")
             ydl_opts = {'outtmpl': temp_filename, 'format': 'mp4'}
@@ -149,7 +151,6 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
             if os.path.exists(temp_filename):
                 os.remove(temp_filename)
 
-        # This logic runs AFTER the inner try...finally has completed successfully
         entry_data = {
             "name": f"New Entry ({style})",
             "style": style,
@@ -170,9 +171,11 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
             if views > 500000:
                 file_prefix = "library_public_winner_"
         
-        # This now builds the full path to save the file inside the /data volume
         file_name = os.path.join(DATA_DIR, f"{file_prefix}{uuid.uuid4()}.json")
-        print(f"--- SAVING NEW DATA ({file_prefix}) to {file_name} ---")
+        
+        # --- DEBUG LINE ---
+        print(f"DEBUG: Attempting to save file to path: '{file_name}'")
+
         with open(file_name, 'w') as f:
             json.dump(entry_data, f, indent=2)
             
@@ -183,7 +186,6 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
             f"Success! I've deeply analyzed and saved the new performance data. My intelligence has been upgraded.",
             ephemeral=True)
             
-    # This 'except' block partners with the main 'try' block at the top
     except Exception as e:
         print(f"Error in learning background task: {e}")
         await interaction.followup.send(
