@@ -171,9 +171,10 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
             if views > 500000:
                 file_prefix = "library_public_winner_"
         
+        # This joins the /data directory with the generated filename
         file_name = os.path.join(DATA_DIR, f"{file_prefix}{uuid.uuid4()}.json")
         
-        # --- DEBUG LINE ---
+        # This is the debug line that was missing from your log
         print(f"DEBUG: Attempting to save file to path: '{file_name}'")
 
         with open(file_name, 'w') as f:
@@ -191,7 +192,7 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
         await interaction.followup.send(
             "A critical error occurred during the learning process. Please check the logs.",
             ephemeral=True)
-
+        
 async def generate_coaching_report(deconstruction, style, views):
     print("Generating strategic coaching report with GPT-4o...")
     winner_ref, vanity_ref, dud_ref = find_best_references(style, GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS)
