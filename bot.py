@@ -211,8 +211,6 @@ except Exception as e:
     print(f"Error generating report with GPT-4o: {e}")
     return f"An error occurred while generating the coaching report with GPT-4o: {e}"
 
-
-
 async def deconstruct_video(video_file, transcript):
     """
     Performs visual-only deconstruction, using a provided transcript and
