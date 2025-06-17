@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 import time
 import asyncio
 import ast
+from datetime import datetime
 
 # --- NEW IMPORTS ---
 import openai
@@ -47,6 +48,21 @@ def find_best_references(style, gold, public, vanity, duds):
     best_vanity = next((v for v in vanity if v.get("style", "").lower() == style.lower()), vanity[0] if vanity else None)
     best_dud = next((v for v in duds if v.get("style", "").lower() == style.lower()), duds[0] if duds else None)
     return best_winner, best_vanity, best_dud
+
+# --- HOOK LEARNING SYSTEM ---
+HOOKS_FILE = "hooks.json"
+
+def load_hooks():
+    if not os.path.exists(HOOKS_FILE):
+        return []
+    with open(HOOKS_FILE, 'r') as f:
+        return json.load(f)
+
+def save_hook(hook_data):
+    hooks = load_hooks()
+    hooks.append(hook_data)
+    with open(HOOKS_FILE, 'w') as f:
+        json.dump(hooks, f, indent=2)
 
 # --- BOT'S BRAIN (DECONSTRUCTION, STRATEGY, AND ANALYSIS) ---
 async def deconstruct_and_summarize(video_file, performance_data):
@@ -439,6 +455,42 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
             
         global GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS
         GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS = load_intelligence_library()
+        
+# ---- Hook Extraction and Save (HOOK BRAIN) ----
+        hook_data = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "style": style,
+            "video_url": video_url,
+            "views": views,
+            "sales_gmv": sales_gmv,
+            "hook_text": None,
+            "hook_analysis": None,
+            "full_entry": copy.deepcopy(entry_data)
+        }
+
+        # Try to auto-extract hook info if available
+        decon = analysis_data.get("deconstruction", {})
+        transcript = decon.get("transcript", "")
+        if transcript:
+            # Extract the first 10 seconds or first 1-2 sentences (can adjust logic)
+            lines = transcript.split('\n')
+            hook_candidate = ""
+            for line in lines:
+                if len(hook_candidate) < 300:
+                    hook_candidate += line.strip() + " "
+                else:
+                    break
+            hook_data["hook_text"] = hook_candidate.strip()
+
+        # Optionally save more hook analysis if your deconstruction provides it
+        hook_data["hook_analysis"] = decon.get("visual_log", [])  # or other info
+
+        # Save to hooks.json
+        hooks = load_hooks()
+        hooks.append(hook_data)
+        with open(HOOKS_FILE, 'w') as f:
+            json.dump(hooks, f, indent=2)
+        
         await interaction.followup.send(
             f"Success! I've deeply analyzed and saved the new performance data. My intelligence has been upgraded.",
             ephemeral=True)
