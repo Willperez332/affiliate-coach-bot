@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 import time
 import asyncio
 import ast
-from datetime import datetime
+from datetime import datetime, timezone
+import copy
 
 # --- NEW IMPORTS ---
 import openai
@@ -487,7 +488,7 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
         
 # ---- Hook Extraction and Save (HOOK BRAIN) ----
         hook_data = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(datetime.UTC).isoformat(),
             "style": style,
             "video_url": video_url,
             "views": views,
