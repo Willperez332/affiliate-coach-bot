@@ -454,8 +454,64 @@ async def process_video(video_url):
             print(f"Deleting local temp audio: {temp_audio_filename}")
             os.remove(temp_audio_filename)
 
-# --- Background Task Runners ---
+# --- DISCORD UI (V3) ---
+class CoachingActions(discord.ui.View):
+    def __init__(self, full_report, transcript, style):
+        super().__init__(timeout=None) # Timeout=None makes the buttons last forever
+        self.full_report = full_report
+        self.transcript = transcript
+        self.style = style
 
+    @discord.ui.button(label="Show Full AIDA-F Breakdown", style=discord.ButtonStyle.secondary, emoji="🔬")
+    async def show_full_report(self, button: discord.ui.Button, interaction: discord.Interaction):
+        # Sends the detailed AIDA-F feedback as a private message
+        await interaction.response.send_message("Here is the detailed AIDA-F breakdown:", ephemeral=True)
+        for chunk in split_message(self.full_report):
+            await interaction.followup.send(chunk, ephemeral=True)
+
+    @discord.ui.button(label="Rewrite My Script", style=discord.ButtonStyle.primary, emoji="✍️")
+    async def rewrite_script(self, button: discord.ui.Button, interaction: discord.Interaction):
+        # Acknowledge the request and start the rewrite task in the background
+        await interaction.response.send_message("Got it! I'm starting the script rewrite. This might take a moment...", ephemeral=True)
+        asyncio.create_task(run_rewrite_task(interaction, self.transcript, self.style))
+
+# --- SCRIPT REWRITING BRAIN ---
+async def run_rewrite_task(interaction, transcript, style):
+    print(f"Starting script rewrite for {style} style...")
+    # Find the best winner to use as a framework reference
+    winner_ref, _, _ = find_best_references(style, GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS, num_winners=1)
+    
+    system_prompt = "You are a world-class script doctor for viral videos. Your task is to rewrite the provided transcript to improve its pacing, clarity, and conversion potential, based on the framework of a proven winning video. Do not change the core topic or style."
+    
+    user_prompt = f"""
+**PROVEN WINNER'S FRAMEWORK (for reference):**
+{json.dumps(winner_ref[0] if winner_ref else 'N/A', indent=2)}
+
+**USER'S CURRENT SCRIPT (to be rewritten):**
+{transcript}
+
+**YOUR TASK:**
+Rewrite the user's script. Apply the pacing, confidence, and structure from the winner's framework. Make it punchier, more direct, and more likely to lead to a sale. Output ONLY the rewritten script, ready for the creator to record.
+"""
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.7
+        )
+        rewritten_script = response.choices[0].message.content
+
+        # Send the result in a new message in the same thread
+        await interaction.followup.send(f"### ✍️ **Your Rewritten Script**\n\n{rewritten_script}", ephemeral=True)
+
+    except Exception as e:
+        print(f"Error during script rewrite: {e}")
+        await interaction.followup.send(f"An error occurred during the script rewrite: {e}", ephemeral=True)
+
+# --- Background Task Runners (V3) ---
 async def run_coaching_task(interaction, video_url, style, views):
     status_message = await interaction.followup.send("`[■□□□]` 🧠 Kicking off analysis...", wait=True)
 
@@ -481,14 +537,13 @@ async def run_coaching_task(interaction, video_url, style, views):
 
         # 2. Main feedback (quick review + brainstorm)
         if main_feedback:
-            for chunk in split_message(main_feedback):
-                await thread.send(chunk)
+            # Create the view with the buttons
+            transcript = deconstruction.get("transcript", "")
+            view = CoachingActions(full_report=expand_feedback, transcript=transcript, style=style)
 
-        # 3. Expand section (full AIDA-F)
-        if expand_feedback:
-            await thread.send("**Expand for full breakdown ↓**")
-            for chunk in split_message(expand_feedback):
-                await thread.send(chunk)
+            # Send the main feedback and attach the view (buttons)
+            await thread.send(main_feedback, view=view)
+
     except Exception as e:
         print(f"Error in coaching background task: {e}")
         await status_message.edit(content=f"A critical error occurred: {e}")
