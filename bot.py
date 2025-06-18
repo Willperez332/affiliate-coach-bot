@@ -423,14 +423,14 @@ class CoachingActions(discord.ui.View):
         # Pass the full deconstruction object to the rewrite task
         asyncio.create_task(run_rewrite_task(interaction, self.deconstruction, self.style))
 
-# --- SCRIPT REWRITING BRAIN (V2 - CONTEXT AWARE) ---
+# --- SCRIPT REWRITING BRAIN (V3 - DIRECTOR'S CUT) ---
 async def run_rewrite_task(interaction, deconstruction, style):
     print(f"Starting script rewrite for {style} style...")
     winner_ref, _, _ = find_best_references(style, GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS, num_winners=1)
     
-    system_prompt = "You are a world-class script doctor for viral videos. Your task is to rewrite the provided transcript to improve its pacing, clarity, and conversion potential, based on the framework of a proven winning video. Do not change the core topic or style."
+    system_prompt = "You are a world-class script doctor for viral videos. Your task is to rewrite the provided transcript into a structured, easy-to-record format, improving its pacing, clarity, and conversion potential based on the framework of a proven winning video."
     
-    # Use the new structured_transcript in the prompt
+    # This is the new, more powerful prompt
     user_prompt = f"""
 **PROVEN WINNER'S FRAMEWORK (for reference):**
 {json.dumps(winner_ref[0] if winner_ref else 'N/A', indent=2)}
@@ -439,12 +439,25 @@ async def run_rewrite_task(interaction, deconstruction, style):
 {json.dumps(deconstruction.get('structured_transcript'), indent=2)}
 
 **YOUR TASK:**
-Rewrite the user's script to improve it.
-- You MUST preserve the 'Clip' dialogue exactly as it is. Treat it as unchangeable.
-- You should ONLY rewrite the dialogue where the speaker is 'Creator'.
-- Your rewritten dialogue should flow seamlessly with the 'Clip' dialogue to build a more powerful narrative.
-- Apply the pacing and structure from the winner's framework to the creator's lines.
-- Output ONLY the final, rewritten script as a single block of text, combining the creator and clip parts into one coherent script.
+Rewrite the user's script into a structured format with clear framework labels.
+1.  Analyze the user's script and the winner's framework.
+2.  Rewrite the user's script, applying the winning patterns.
+3.  Structure your output using these labels: `Hook:`, `Build-up:`, `Problem:`, `Solution/Proof:`, `CTA:`.
+4.  **Crucially:** If the original script contained dialogue from a 'Clip' speaker, you MUST explicitly note where those clips should be played in the rewritten script. Use the format `(Play Clip: [Source])`. For example: `(Play Clip: The Simpsons)`.
+5.  You must ONLY rewrite the dialogue where the speaker is 'Creator'. Preserve the 'Clip' dialogue.
+6.  Output ONLY the final, rewritten script with the framework labels, ready for the creator to record.
+
+**Example for a Conspiracy Video:**
+Hook:
+Why does nobody realize this Disney classic warned us about our future?
+
+Build-up:
+Listen to this scene, it's mind-blowing.
+(Play Clip: Wall-E)
+Now, it gets even creepier...
+
+CTA:
+...so if you see the orange box, grab it before it's gone for good.
 """
     try:
         response = await client.chat.completions.create(
@@ -457,7 +470,10 @@ Rewrite the user's script to improve it.
         )
         rewritten_script = response.choices[0].message.content
 
-        await interaction.followup.send(f"### ✍️ **Your Rewritten Script**\n\n{rewritten_script}", ephemeral=True)
+        # Send the rewritten script in chunks
+        await interaction.followup.send(f"### ✍️ **Your Rewritten Script (Director's Cut)**", ephemeral=True)
+        for chunk in split_message(rewritten_script):
+            await interaction.followup.send(chunk, ephemeral=True)
 
     except Exception as e:
         print(f"Error during script rewrite: {e}")
