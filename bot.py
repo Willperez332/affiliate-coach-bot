@@ -74,8 +74,7 @@ def find_best_references(style, gold, public, vanity, duds, num_winners=3):
     best_dud = next((v for v in duds if v.get("style", "").lower() == style.lower()), duds[0] if duds else None)
     
     return top_winners, best_vanity, best_dud
-    return best_winner, best_vanity, best_dud
-
+    
 # --- BOT'S BRAIN (DECONSTRUCTION, STRATEGY, AND ANALYSIS) ---
 
 async def deconstruct_and_summarize(video_file, performance_data):
@@ -191,21 +190,16 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
 async def generate_coaching_report(deconstruction, style, views):
     print("Generating strategic coaching report with GPT-4o...")
     
-    # Use the new V2 reference finder to get a LIST of winners
     top_winners, vanity_ref, dud_ref = find_best_references(style, GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS)
 
     if not top_winners: 
         return "Error: Winners Library is empty. Use /learn to teach me first.", ""
 
-    # Convert the list of winners into a string for the prompt
     winners_text = json.dumps(top_winners, indent=2)
     vanity_text = json.dumps(vanity_ref, indent=2) if vanity_ref else "N/A"
     dud_text = json.dumps(dud_ref, indent=2) if dud_ref else "N/A"
     deconstruction_text = json.dumps(deconstruction, indent=2)
 
-    # Note: We are now splitting the prompts into two distinct calls for better control.
-    # The first prompt generates the main, high-level feedback.
-    
     system_prompt_main = """
 You are CoachAI, an elite TikTok Shop performance coach. Your prime directive is to IMPROVE the user's existing video, not suggest a new one. All feedback must be actionable and grounded in the data provided. NEVER mention race, gender, or sensitive cultural topics unless the user's own video transcript contains them. Focus only on patterns from the WINNING_EXAMPLES.
 """
@@ -230,11 +224,10 @@ You are CoachAI, an elite TikTok Shop performance coach. Your prime directive is
 *   **Script Insight:** Pinpoint one specific sentence or moment in the middle of the creator's script that could be improved for better pacing or clarity. Provide a specific "before/after" suggestion.
 *   **Style Tip:** Provide one general tip for the '{style}' video genre that is demonstrated in the winning examples and would directly help this video.
 """
-
-    # The second prompt generates the detailed, line-by-line AIDA-F feedback.
     
+    # THIS IS THE UPDATED SYSTEM PROMPT FOR THE EXPANDED VIEW
     system_prompt_expand = """
-You are a direct, no-fluff video editor. Your only job is to provide AIDA-F feedback. For every weakness (🚩), you MUST provide a concrete, actionable fix (🛠️) directly inspired by the provided WINNING EXAMPLES. Do not make up generic advice.
+You are a direct, no-fluff video editor. Your only job is to provide AIDA-F feedback. For every weakness (🚩), you MUST provide a concrete, actionable fix (🛠️). This fix must be based on a STRATEGY or PATTERN you observe in the WINNING EXAMPLES. **IMPORTANT: Describe the strategy, do NOT mention the winning videos by name or specific content.** For example, instead of saying 'like the mother-daughter video', say 'by using a surprising age comparison to create intrigue'.
 """
 
     user_prompt_expand = f"""
@@ -253,27 +246,17 @@ For each section, provide two bullets: one "✅ Good" and one "🚩 Bad". For ev
 """
 
     try:
-        # --- Call 1: Generate the Main Feedback ---
         main_resp = await client.chat.completions.create(
             model="gpt-4o",
-            messages=[
-                {"role": "system", "content": system_prompt_main},
-                {"role": "user", "content": user_prompt_main}
-            ],
+            messages=[{"role": "system", "content": system_prompt_main}, {"role": "user", "content": user_prompt_main}],
             temperature=0.7
         )
         main_feedback = main_resp.choices[0].message.content.strip()
-
-        # Add a motivational quote at the end of the main feedback
         main_feedback += "\n\n---\n### **Final Thought**\n*Keep pushing. The only difference between a good video and a viral video is a few small tweaks.*"
 
-        # --- Call 2: Generate the Expanded AIDA-F Feedback ---
         expand_resp = await client.chat.completions.create(
             model="gpt-4o",
-            messages=[
-                {"role": "system", "content": system_prompt_expand},
-                {"role": "user", "content": user_prompt_expand}
-            ],
+            messages=[{"role": "system", "content": system_prompt_expand}, {"role": "user", "content": user_prompt_expand}],
             temperature=0.6
         )
         expand_feedback = expand_resp.choices[0].message.content.strip()
@@ -283,52 +266,43 @@ For each section, provide two bullets: one "✅ Good" and one "🚩 Bad". For ev
     except Exception as e:
         print(f"Error generating report with GPT-4o: {e}")
         return f"An error occurred while generating the coaching report: {e}", ""
-
+        
 async def deconstruct_video(video_file, transcript):
     """
-    Performs visual-only deconstruction, using a provided transcript and
-    generates visual log with timestamps to support time-specific insights.
-    If no meaningful improvements are found, it will skip unnecessary suggestions.
+    Performs a structured deconstruction of the video, separating the Creator's
+    dialogue from inserted clips.
     """
-    print("Performing visual-only deconstruction with Gemini...")
+    print("Performing structured deconstruction with Gemini...")
     model = genai.GenerativeModel(model_name="gemini-1.5-flash")
 
     prompt = f"""
-    You are a video analysis AI. A highly accurate transcript has been provided for context. 
-    Your task is to ONLY analyze the visual elements of the video and include timestamps for key moments.
-
-    **TRANSCRIPT:**
-    ---
-    {transcript}
-    ---
+    You are a master video analyst AI. Your task is to deconstruct the provided video into a structured format.
 
     **YOUR TASK:**
-    1. Create a visual log with accurate timestamps. Each entry should include timestamp, camera angle, on-screen text, and notable visual features.
-    2. Identify and return the most impactful moment in the video based on pacing, expression, or visual delivery. Include its timestamp and a short reason why it stands out.
-    3. ONLY provide a script improvement suggestion IF there is a clear opportunity to enhance clarity, tone, or persuasion in a specific moment. Otherwise, skip it.
+    1.  Analyze the video and transcribe it into a structured dialogue list. Each item in the list should be an object with a "speaker" and "dialogue" key.
+    2.  The "speaker" can only be one of two options: 'Creator' (when the person on camera is talking) or 'Clip' (when dialogue is from an inserted movie clip, news report, etc.).
+    3.  For each 'Clip', add a "source" key identifying the media if possible (e.g., "The Simpsons," "Joe Rogan Experience").
 
-    **OUTPUT FORMAT:**
+    **OUTPUT ONLY A STRUCTURED JSON OBJECT** with a single key "structured_transcript" that contains the list of dialogue objects.
+
+    **GOOD EXAMPLE OUTPUT:**
     ```json
     {{
-        "visual_log": [
-            {{"timestamp": "00:05", "description": "Text overlay: \"Wall-E was right...\", medium close-up of creator with shocked expression."}},
-            {{"timestamp": "00:12", "description": "Insert of Wall-E footage, grainy texture with yellow filter."}}
-        ],
-        "highlight_moment": {{
-            "timestamp": "00:12",
-            "reason": "This is where the creator shifts tone and inserts the viral Wall-E moment, anchoring attention."
+      "structured_transcript": [
+        {{
+          "speaker": "Creator",
+          "dialogue": "You're telling me a movie from 2022 predicted this?"
         }},
-        "script_suggestion": {{
-            "timestamp": "00:13",
-            "suggestion": "Right after this, add a line like: 'This is the part they don't want you to see.'"
+        {{
+          "speaker": "Clip",
+          "source": "White Noise (Movie)",
+          "dialogue": "You know what I don't understand is why they never found the doctors."
+        }},
+        {{
+          "speaker": "Creator",
+          "dialogue": "My son's had clean checkups every year since the day he was born."
         }}
-    }}
-    OR if no changes are needed:
-    ```json
-    {{
-        "visual_log": [...],
-        "highlight_moment": {{...}},
-        "script_suggestion": null
+      ]
     }}
     ```
     """
@@ -336,43 +310,18 @@ async def deconstruct_video(video_file, transcript):
     try:
         response = await model.generate_content_async([prompt, video_file])
         cleaned_response = response.text.strip().replace("```json", "").replace("```", "")
-        visual_log_data = json.loads(cleaned_response)
+        deconstruction_data = json.loads(cleaned_response)
+        
+        # Create the full deconstruction object for the rest of the bot
         full_deconstruction = {
-            "transcript": transcript,
-            "visual_log": visual_log_data.get("visual_log", []),
-            "highlight_moment": visual_log_data.get("highlight_moment", {}),
-            "script_suggestion": visual_log_data.get("script_suggestion", None)
+            "transcript": transcript, # Keep the flat transcript for backwards compatibility
+            "structured_transcript": deconstruction_data.get("structured_transcript", [])
         }
-        print("Visual-only deconstruction successful.")
+        print("Structured deconstruction successful.")
         return full_deconstruction
     except Exception as e:
-        print(f"Error during visual deconstruction: {e}")
-        return {"error": "Failed to deconstruct video visuals.", "details": str(e)}
-
-
-async def process_video_for_report(video_url, style, views):
-    """Main pipeline for the /coachme command."""
-    # This is a simplified deconstruction for speed, since the full analysis is the goal.
-    temp_filename = f"temp_video_{uuid.uuid4()}.mp4"
-    uploaded_file = None
-    try:
-        print(f"Downloading video for coaching: {video_url}")
-        ydl_opts = {'outtmpl': temp_filename, 'format': 'best[ext=mp4]/best'}
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl: ydl.download([video_url])
-        print(f"Uploading {temp_filename}...")
-        uploaded_file = genai.upload_file(path=temp_filename)
-        while uploaded_file.state.name == "PROCESSING":
-            time.sleep(10)
-            uploaded_file = genai.get_file(name=uploaded_file.name)
-        if uploaded_file.state.name != "ACTIVE": raise ValueError(f"File {uploaded_file.name} failed to process.")
-        video_file = uploaded_file
-        
-        # We still run the simple deconstruction here for the coaching report
-        deconstruction = await deconstruct_video(video_file)
-        return await generate_coaching_report(deconstruction, style)
-    finally:
-        if uploaded_file: genai.delete_file(name=uploaded_file.name)
-        if os.path.exists(temp_filename): os.remove(temp_filename)
+        print(f"Error during structured deconstruction: {e}")
+        return {"error": "Failed to deconstruct video.", "details": str(e)}
 
 async def process_video(video_url):
     """
@@ -454,44 +403,48 @@ async def process_video(video_url):
             print(f"Deleting local temp audio: {temp_audio_filename}")
             os.remove(temp_audio_filename)
 
-# --- DISCORD UI (V3) ---
+# --- DISCORD UI (V3 - CONTEXT AWARE) ---
 class CoachingActions(discord.ui.View):
-    def __init__(self, full_report, transcript, style):
-        super().__init__(timeout=None) # Timeout=None makes the buttons last forever
+    def __init__(self, full_report, deconstruction, style):
+        super().__init__(timeout=None)
         self.full_report = full_report
-        self.transcript = transcript
+        self.deconstruction = deconstruction # Pass the whole object
         self.style = style
 
     @discord.ui.button(label="Show Full AIDA-F Breakdown", style=discord.ButtonStyle.secondary, emoji="🔬")
     async def show_full_report(self, button: discord.ui.Button, interaction: discord.Interaction):
-        # Sends the detailed AIDA-F feedback as a private message
         await interaction.response.send_message("Here is the detailed AIDA-F breakdown:", ephemeral=True)
         for chunk in split_message(self.full_report):
             await interaction.followup.send(chunk, ephemeral=True)
 
     @discord.ui.button(label="Rewrite My Script", style=discord.ButtonStyle.primary, emoji="✍️")
     async def rewrite_script(self, button: discord.ui.Button, interaction: discord.Interaction):
-        # Acknowledge the request and start the rewrite task in the background
         await interaction.response.send_message("Got it! I'm starting the script rewrite. This might take a moment...", ephemeral=True)
-        asyncio.create_task(run_rewrite_task(interaction, self.transcript, self.style))
+        # Pass the full deconstruction object to the rewrite task
+        asyncio.create_task(run_rewrite_task(interaction, self.deconstruction, self.style))
 
-# --- SCRIPT REWRITING BRAIN ---
-async def run_rewrite_task(interaction, transcript, style):
+# --- SCRIPT REWRITING BRAIN (V2 - CONTEXT AWARE) ---
+async def run_rewrite_task(interaction, deconstruction, style):
     print(f"Starting script rewrite for {style} style...")
-    # Find the best winner to use as a framework reference
     winner_ref, _, _ = find_best_references(style, GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS, num_winners=1)
     
     system_prompt = "You are a world-class script doctor for viral videos. Your task is to rewrite the provided transcript to improve its pacing, clarity, and conversion potential, based on the framework of a proven winning video. Do not change the core topic or style."
     
+    # Use the new structured_transcript in the prompt
     user_prompt = f"""
 **PROVEN WINNER'S FRAMEWORK (for reference):**
 {json.dumps(winner_ref[0] if winner_ref else 'N/A', indent=2)}
 
-**USER'S CURRENT SCRIPT (to be rewritten):**
-{transcript}
+**USER'S CURRENT SCRIPT (Structured Dialogue):**
+{json.dumps(deconstruction.get('structured_transcript'), indent=2)}
 
 **YOUR TASK:**
-Rewrite the user's script. Apply the pacing, confidence, and structure from the winner's framework. Make it punchier, more direct, and more likely to lead to a sale. Output ONLY the rewritten script, ready for the creator to record.
+Rewrite the user's script to improve it.
+- You MUST preserve the 'Clip' dialogue exactly as it is. Treat it as unchangeable.
+- You should ONLY rewrite the dialogue where the speaker is 'Creator'.
+- Your rewritten dialogue should flow seamlessly with the 'Clip' dialogue to build a more powerful narrative.
+- Apply the pacing and structure from the winner's framework to the creator's lines.
+- Output ONLY the final, rewritten script as a single block of text, combining the creator and clip parts into one coherent script.
 """
     try:
         response = await client.chat.completions.create(
@@ -504,14 +457,13 @@ Rewrite the user's script. Apply the pacing, confidence, and structure from the 
         )
         rewritten_script = response.choices[0].message.content
 
-        # Send the result in a new message in the same thread
         await interaction.followup.send(f"### ✍️ **Your Rewritten Script**\n\n{rewritten_script}", ephemeral=True)
 
     except Exception as e:
         print(f"Error during script rewrite: {e}")
         await interaction.followup.send(f"An error occurred during the script rewrite: {e}", ephemeral=True)
 
-# --- Background Task Runners (V3) ---
+# --- Background Task Runners (V3 - CONTEXT AWARE) ---
 async def run_coaching_task(interaction, video_url, style, views):
     status_message = await interaction.followup.send("`[■□□□]` 🧠 Kicking off analysis...", wait=True)
 
@@ -532,22 +484,17 @@ async def run_coaching_task(interaction, video_url, style, views):
             type=discord.ChannelType.public_thread
         )
 
-        # 1. Video link by itself
         await thread.send(f"🎥 **Video:** {video_url}")
 
-        # 2. Main feedback (quick review + brainstorm)
         if main_feedback:
-            # Create the view with the buttons
-            transcript = deconstruction.get("transcript", "")
-            view = CoachingActions(full_report=expand_feedback, transcript=transcript, style=style)
-
-            # Send the main feedback and attach the view (buttons)
+            # Pass the full deconstruction object to the View
+            view = CoachingActions(full_report=expand_feedback, deconstruction=deconstruction, style=style)
             await thread.send(main_feedback, view=view)
 
     except Exception as e:
         print(f"Error in coaching background task: {e}")
         await status_message.edit(content=f"A critical error occurred: {e}")
-
+        
 # Utility function to chunk long messages
 def split_message(text, chunk_size=1900):
     chunks = []
