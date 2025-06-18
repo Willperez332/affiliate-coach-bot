@@ -51,12 +51,29 @@ def load_intelligence_library():
     print(f"Library loaded with {len(gold_winners)} Gold, {len(public_winners)} Public, {len(vanity_losers)} Vanity, and {len(dud_losers)} Dud Losers.")
     return gold_winners, public_winners, vanity_losers, dud_losers
     
-# --- INTELLIGENT MATCHING ---
-def find_best_references(style, gold, public, vanity, duds):
-    best_winner = next((v for v in gold if v.get("style", "").lower() == style.lower()), gold[0] if gold else None)
-    if not best_winner: best_winner = next((v for v in public if v.get("style", "").lower() == style.lower()), public[0] if public else None)
+# --- INTELLIGENT MATCHING (V2) ---
+def find_best_references(style, gold, public, vanity, duds, num_winners=3):
+    """
+    Finds a collection of the best winning examples and the most relevant losers.
+    """
+    # Combine all winners and filter by the requested style
+    all_winners = gold + public
+    style_winners = [v for v in all_winners if v.get("style", "").lower() == style.lower()]
+    
+    # Sort the winners by performance (views) and get the top N
+    style_winners.sort(key=lambda v: v.get("views", 0), reverse=True)
+    top_winners = style_winners[:num_winners]
+
+    # If no style-specific winners, use the absolute best overall winners as a fallback
+    if not top_winners:
+        all_winners.sort(key=lambda v: v.get("views", 0), reverse=True)
+        top_winners = all_winners[:num_winners]
+
+    # Find the best loser examples for contrast
     best_vanity = next((v for v in vanity if v.get("style", "").lower() == style.lower()), vanity[0] if vanity else None)
     best_dud = next((v for v in duds if v.get("style", "").lower() == style.lower()), duds[0] if duds else None)
+    
+    return top_winners, best_vanity, best_dud
     return best_winner, best_vanity, best_dud
 
 # --- BOT'S BRAIN (DECONSTRUCTION, STRATEGY, AND ANALYSIS) ---
@@ -170,48 +187,60 @@ async def run_learning_task(interaction, video_url, style, views, sales_gmv, is_
             "A critical error occurred during the learning process. Please check the logs.",
             ephemeral=True)
         
+# --- BOT'S BRAIN (COACHING V2) ---
 async def generate_coaching_report(deconstruction, style, views):
     print("Generating strategic coaching report with GPT-4o...")
-    winner_ref, vanity_ref, dud_ref = find_best_references(style, GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS)
+    
+    # Use the new V2 reference finder to get a LIST of winners
+    top_winners, vanity_ref, dud_ref = find_best_references(style, GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS)
 
-    if not winner_ref: 
+    if not top_winners: 
         return "Error: Winners Library is empty. Use /learn to teach me first.", ""
 
-    winner_text = json.dumps(winner_ref, indent=2)
+    # Convert the list of winners into a string for the prompt
+    winners_text = json.dumps(top_winners, indent=2)
     vanity_text = json.dumps(vanity_ref, indent=2) if vanity_ref else "N/A"
     dud_text = json.dumps(dud_ref, indent=2) if dud_ref else "N/A"
     deconstruction_text = json.dumps(deconstruction, indent=2)
 
-    system_prompt = (
-        "You are CoachAI, an elite TikTok Shop performance marketing coach. "
-        "Keep output clean and engaging, with short, direct bullets."
-    )
+    # Note: We are now splitting the prompts into two distinct calls for better control.
+    # The first prompt generates the main, high-level feedback.
     
-    # TWO PROMPTS: Main (summary), Expand (full)
-    user_prompt_main = f"""
-**YOUR KNOWLEDGE BASE:** (summarized below)
-- Proven Winner: {winner_text}
-- Vanity Performer: {vanity_text}
-- Underperformer: {dud_text}
-- Creator's Video Deconstruction: {deconstruction_text}
-- Intended Video Style: {style}
+    system_prompt_main = """
+You are CoachAI, an elite TikTok Shop performance coach. Your prime directive is to IMPROVE the user's existing video, not suggest a new one. All feedback must be actionable and grounded in the data provided. NEVER mention race, gender, or sensitive cultural topics unless the user's own video transcript contains them. Focus only on patterns from the WINNING_EXAMPLES.
+"""
 
-**YOUR TASK:**
-1. Write a Quick Video Review (2-3 concise, non-repetitive sentences: What’s the main barrier to viral sales success? What’s 1 strong opportunity?).
-2. Write a Creative Brainstorm section: 
-    - 2 hook ideas (1 sharp, 1 story-based)
-    - 1 “Script Insight” (where to add a new line or improve)
-    - 1 style tip for {style}
-NO full breakdowns. DO NOT mention “Gold Winner.” Just pure, creator-friendly feedback. Make it feel like a real creator wrote it.
-    """
+    user_prompt_main = f"""
+**DATA LIBRARY:**
+- WINNING EXAMPLES (A collection of top performers): {winners_text}
+- VANITY LOSER (High Views, Low Sales): {vanity_text}
+- DUD LOSER (Low Views, Low Sales): {dud_text}
+- CREATOR'S VIDEO (Deconstruction): {deconstruction_text}
+- INTENDED STYLE: {style}
+
+**YOUR TASK (Follow this structure exactly):**
+---
+### **🧠 Quick Video Review**
+*(Based on the library, what is the single biggest opportunity for improvement in the creator's video to drive more sales? Be direct and concise.)*
+
+---
+### **💡 Creative Brainstorm**
+*(Based on the patterns in the WINNING EXAMPLES, provide the following):*
+*   **Improved Hook:** Rewrite the creator's hook to be more powerful, using the 'spoken dialogue' style from the winning examples.
+*   **Script Insight:** Pinpoint one specific sentence or moment in the middle of the creator's script that could be improved for better pacing or clarity. Provide a specific "before/after" suggestion.
+*   **Style Tip:** Provide one general tip for the '{style}' video genre that is demonstrated in the winning examples and would directly help this video.
+"""
+
+    # The second prompt generates the detailed, line-by-line AIDA-F feedback.
+    
+    system_prompt_expand = """
+You are a direct, no-fluff video editor. Your only job is to provide AIDA-F feedback. For every weakness (🚩), you MUST provide a concrete, actionable fix (🛠️) directly inspired by the provided WINNING EXAMPLES. Do not make up generic advice.
+"""
 
     user_prompt_expand = f"""
-**YOUR KNOWLEDGE BASE:** (summarized below)
-- Proven Winner: {winner_text}
-- Vanity Performer: {vanity_text}
-- Underperformer: {dud_text}
-- Creator's Video Deconstruction: {deconstruction_text}
-- Intended Video Style: {style}
+**DATA LIBRARY:**
+- WINNING EXAMPLES: {winners_text}
+- CREATOR'S VIDEO: {deconstruction_text}
 
 **YOUR TASK:**
 Write ONLY the AIDA-F (Rapid Fire Feedback) section for this creator:
@@ -220,27 +249,32 @@ Write ONLY the AIDA-F (Rapid Fire Feedback) section for this creator:
 - Desire (Solution/Proof)
 - Action (CTA)
 - Frame (Vibe)
-2 bullets each: 1 “✅ Good”, 1 “🚩 Bad”, 1 “🛠️ Fix”. Use plain language.
-    """
+For each section, provide two bullets: one "✅ Good" and one "🚩 Bad". For every "🚩 Bad", you must add a "🛠️ Fix:" with a specific, actionable suggestion based on a pattern from the WINNING EXAMPLES.
+"""
 
     try:
-        # Get main (summary) output
+        # --- Call 1: Generate the Main Feedback ---
         main_resp = await client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": system_prompt_main},
                 {"role": "user", "content": user_prompt_main}
-            ]
+            ],
+            temperature=0.7
         )
         main_feedback = main_resp.choices[0].message.content.strip()
 
-        # Get expand (full) output
+        # Add a motivational quote at the end of the main feedback
+        main_feedback += "\n\n---\n### **Final Thought**\n*Keep pushing. The only difference between a good video and a viral video is a few small tweaks.*"
+
+        # --- Call 2: Generate the Expanded AIDA-F Feedback ---
         expand_resp = await client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": system_prompt_expand},
                 {"role": "user", "content": user_prompt_expand}
-            ]
+            ],
+            temperature=0.6
         )
         expand_feedback = expand_resp.choices[0].message.content.strip()
 
@@ -248,7 +282,7 @@ Write ONLY the AIDA-F (Rapid Fire Feedback) section for this creator:
 
     except Exception as e:
         print(f"Error generating report with GPT-4o: {e}")
-        return None, f"An error occurred while generating the coaching report with GPT-4o: {e}"
+        return f"An error occurred while generating the coaching report: {e}", ""
 
 async def deconstruct_video(video_file, transcript):
     """
