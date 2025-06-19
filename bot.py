@@ -409,14 +409,14 @@ Generate 3 unique, on-screen text hook ideas for the user's video.
         print(f"Error during text hook generation: {e}")
         await interaction.followup.send(f"An error occurred during text hook generation: {e}", ephemeral=True)
 
-# --- SCRIPT REWRITING BRAIN (V4.2 - FORCED TABLE FORMAT) ---
+# --- SCRIPT REWRITING BRAIN (V5 - DISCORD EMBEDS) ---
 async def run_rewrite_task(interaction, deconstruction, style):
     print(f"Starting production script rewrite for {style} style...")
     winner_ref, _, _ = find_best_references(style, GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS, num_winners=1)
     
-    system_prompt = "You are a world-class TikTok scriptwriter and video director. Your task is to rewrite the provided video's script into a professional, scene-by-scene production script formatted as a perfect Markdown table. You must improve the original script based on patterns from a proven winning video."
+    system_prompt = "You are a world-class TikTok scriptwriter and video director. Your task is to rewrite the provided video's script into a structured list of scenes, improving its pacing, clarity, and conversion potential based on patterns from a proven winning video."
     
-    # This is the new, more forceful prompt with a raw markdown example.
+    # This is the new prompt that asks for a JSON list of scenes.
     user_prompt = f"""
 **PROVEN WINNER'S FRAMEWORK (for inspiration):**
 {json.dumps(winner_ref[0] if winner_ref else 'N/A', indent=2)}
@@ -425,37 +425,65 @@ async def run_rewrite_task(interaction, deconstruction, style):
 {json.dumps(deconstruction.get('structured_transcript'), indent=2)}
 
 **YOUR TASK:**
-Rewrite the user's script into a professional production script.
-1.  You **MUST** format the output as a perfect Markdown table with three columns: 'Time / Scene', 'Visuals', and 'Audio / Dialogue'.
-2.  Break the video down into logical scenes (e.g., Hook, Problem, Solution, CTA).
-3.  For the 'Visuals' column, describe the on-screen action, camera angles, and text overlays.
-4.  For the 'Audio / Dialogue' column, write the rewritten dialogue or note to play a clip.
-5.  When it's time to play a clip from the original video, the 'Audio / Dialogue' for that scene **MUST** be `(Play Clip: [Source])`.
+Rewrite the user's script and structure it as a JSON list of scene objects.
+1.  Each object in the list represents one scene and must have three keys: "scene_name", "visuals", and "dialogue".
+2.  Break the video down into logical scenes (e.g., "0-4s (Hook)", "4-10s (Problem)", etc.).
+3.  For the "visuals" key, describe the on-screen action, camera angles, and text overlays.
+4.  For the "dialogue" key, write the rewritten, improved dialogue.
+5.  **Crucially:** When it's time to play a clip, the "dialogue" for that scene should be `(Play Clip: [Source])`.
 6.  You MUST only rewrite dialogue where the original speaker was 'Creator'.
 
-**CRITICAL: Your final output must be ONLY the raw text for a Markdown table and nothing else. Follow this format exactly:**
+**OUTPUT ONLY A VALID JSON LIST of objects.**
 
-| Time / Scene  | Visuals                                                  | Audio / Dialogue                                                    |
-|---------------|----------------------------------------------------------|---------------------------------------------------------------------|
-| 0-4s (Hook)   | **Creator (Medium Close-Up):** Looks directly at camera. | "I was sick for two years, and doctors couldn't help. Then a stranger told me this." |
-| 4-10s (Problem) | **On-screen Text:** "My lowest point..." Shows old photo. | "I was constantly bloated, tired, and my skin was a mess."          |
-| 10-15s (CTA)  | **Creator:** Holds up product to camera.                   | "...so if you want to try what actually worked, check it out."        |
+**Example of a single JSON object in the list:**
+{{
+    "scene_name": "10-18s (Problem)",
+    "visuals": "**On-screen Text:** 'My Lowest Point'\\nShows an old photo of the creator looking less fit.",
+    "dialogue": "I had tried every crazy workout and diet, but nothing worked until I discovered the real issue."
+}}
 """
     try:
         response = await client.chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-            temperature=0.7
+            temperature=0.7,
+            # Force the model to output JSON
+            response_format={"type": "json_object"}
         )
-        rewritten_script = response.choices[0].message.content
-
-        # The AI might still wrap its output in markdown fences, so we remove them.
-        cleaned_script = rewritten_script.strip().replace("```markdown", "").replace("```", "")
         
-        await interaction.followup.send(f"### ✍️ **Your Production Script**", ephemeral=True)
-        # Send the cleaned script, which should now be a perfect table.
-        for chunk in split_message(cleaned_script):
-            await interaction.followup.send(chunk, ephemeral=True)
+        # The AI will return a JSON object, likely with a key like "scenes"
+        # We use ast.literal_eval for safe parsing
+        structured_script_data = ast.literal_eval(response.choices[0].message.content)
+
+        # The scenes are likely inside a key, let's find it.
+        # Common keys could be "scenes", "script", "production_script", etc.
+        scenes = None
+        for key, value in structured_script_data.items():
+            if isinstance(value, list):
+                scenes = value
+                break
+        
+        if not scenes:
+            raise ValueError("Could not find the list of scenes in the AI's JSON response.")
+
+        # --- THIS IS THE NEW EMBED-BUILDING LOGIC ---
+        await interaction.followup.send(f"### 🎬 **Your Production Script**", ephemeral=True)
+
+        for scene in scenes:
+            scene_name = scene.get("scene_name", "Unnamed Scene")
+            visuals = scene.get("visuals", "N/A")
+            dialogue = scene.get("dialogue", "N/A")
+
+            # Create a new Discord Embed for each scene
+            embed = discord.Embed(
+                title=f"🎬 {scene_name}",
+                color=discord.Color.blue()
+            )
+            embed.add_field(name="👁️ Visuals", value=visuals, inline=False)
+            embed.add_field(name="🎤 Audio / Dialogue", value=dialogue, inline=False)
+
+            # Send the embed as a private message
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
     except Exception as e:
         print(f"Error during script rewrite: {e}")
