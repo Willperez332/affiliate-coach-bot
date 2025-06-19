@@ -419,7 +419,7 @@ Generate 3 unique, on-screen text hook ideas for the user's video.
         print(f"Error during text hook generation: {e}")
         await interaction.followup.send(f"An error occurred during text hook generation: {e}", ephemeral=True)
 
-# --- SCRIPT REWRITING BRAIN (V5 - DISCORD EMBEDS & ROBUST PARSING) ---
+# --- SCRIPT REWRITING BRAIN (V5.1 - FINAL FIX) ---
 async def run_rewrite_task(interaction, deconstruction, style):
     print(f"Starting production script rewrite for {style} style...")
     winner_ref, _, _ = find_best_references(style, GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS, num_winners=1)
@@ -428,7 +428,7 @@ async def run_rewrite_task(interaction, deconstruction, style):
     
     user_prompt = f"""
 **PROVEN WINNER'S FRAMEWORK (for inspiration):**
-{json.dumps(winner_ref if winner_ref else 'N/A', indent=2)}
+{json.dumps(winner_ref[0] if winner_ref else 'N/A', indent=2)}
 
 **USER'S CURRENT SCRIPT (Structured Dialogue):**
 {json.dumps(deconstruction.get('structured_transcript'), indent=2)}
@@ -464,18 +464,14 @@ Rewrite the user's script and structure it as a JSON list of scene objects.
         )
         
         # --- THIS IS THE FIX ---
-        # 1. Get the raw string content from the AI response.
-        raw_content = response.choices.message.content
+        # Access the first choice in the list with [0]
+        raw_content = response.choices[0].message.content
         
-        # 2. Apply our proven cleaning logic to remove markdown fences.
         cleaned_content = raw_content.strip().replace("```json", "").replace("```", "")
-
-        # 3. Safely parse the CLEANED content.
         structured_script_data = ast.literal_eval(cleaned_content)
         
         scenes = None
         if isinstance(structured_script_data, dict):
-            # Find the list of scenes, regardless of the key name
             for key, value in structured_script_data.items():
                 if isinstance(value, list):
                     scenes = value
