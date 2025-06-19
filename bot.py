@@ -276,34 +276,33 @@ async def deconstruct_video(video_file, transcript):
     model = genai.GenerativeModel(model_name="gemini-1.5-flash")
 
     prompt = f"""
-    You are a master video analyst AI. Your task is to deconstruct the provided video into a structured format.
+You are a master video analyst AI. Your task is to deconstruct the provided video into a structured format.
 
-    **YOUR TASK:**
-    1.  Analyze the video and transcribe it into a structured dialogue list. Each item in the list should be an object with a "speaker" and "dialogue" key.
-    2.  The "speaker" can only be one of two options: 'Creator' (when the person on camera is talking) or 'Clip' (when dialogue is from an inserted movie clip, news report, etc.).
-    3.  For each 'Clip', add a "source" key identifying the media if possible (e.g., "The Simpsons," "Joe Rogan Experience").
+**YOUR TASK:**
+1.  Analyze the video and transcribe it into a structured dialogue list. Each item in the list should be an object with a "speaker" and "dialogue" key.
+2.  The "speaker" can only be one of two options: 'Creator' or 'Clip'.
+3.  For each 'Clip', add a "source" key identifying the media.
+4.  At each timestamp, note any significant "on_screen_text" that appears.
 
-    **OUTPUT ONLY A STRUCTURED JSON OBJECT** with a single key "structured_transcript" that contains the list of dialogue objects.
+**OUTPUT ONLY A STRUCTURED JSON OBJECT** with a single key "structured_transcript" that contains the list of dialogue objects.
 
-    **GOOD EXAMPLE OUTPUT:**
-    ```json
+**GOOD EXAMPLE OUTPUT:**
+```json
+{{
+  "structured_transcript": [
     {{
-      "structured_transcript": [
-        {{
-          "speaker": "Creator",
-          "dialogue": "You're telling me a movie from 2022 predicted this?"
-        }},
-        {{
-          "speaker": "Clip",
-          "source": "White Noise (Movie)",
-          "dialogue": "You know what I don't understand is why they never found the doctors."
-        }},
-        {{
-          "speaker": "Creator",
-          "dialogue": "My son's had clean checkups every year since the day he was born."
-        }}
-      ]
+      "speaker": "Creator",
+      "dialogue": "You're telling me a movie from 2022 predicted this?",
+      "on_screen_text": "They Warned Us..."
+    }},
+    {{
+      "speaker": "Clip",
+      "source": "White Noise (Movie)",
+      "dialogue": "You know what I don't understand is why they never found the doctors.",
+      "on_screen_text": null
     }}
+  ]
+}}
     ```
     """
 
@@ -422,6 +421,12 @@ class CoachingActions(discord.ui.View):
         await interaction.response.send_message("Got it! I'm starting the script rewrite. This might take a moment...", ephemeral=True)
         # Pass the full deconstruction object to the rewrite task
         asyncio.create_task(run_rewrite_task(interaction, self.deconstruction, self.style))
+  
+    # --- THIS IS THE NEW BUTTON ---
+    @discord.ui.button(label="Suggest Text Hooks", style=discord.ButtonStyle.success, emoji="✍️")
+    async def suggest_text_hooks(self, button: discord.ui.Button, interaction: discord.Interaction):
+        await interaction.response.send_message("Analyzing winning patterns to generate text hooks...", ephemeral=True)
+        asyncio.create_task(run_text_hook_generation_task(interaction, self.deconstruction, self.style))
 
 # --- SCRIPT REWRITING BRAIN (V3 - DIRECTOR'S CUT) ---
 async def run_rewrite_task(interaction, deconstruction, style):
@@ -478,6 +483,66 @@ CTA:
     except Exception as e:
         print(f"Error during script rewrite: {e}")
         await interaction.followup.send(f"An error occurred during the script rewrite: {e}", ephemeral=True)
+# --- TEXT HOOK GENERATION BRAIN ---
+async def run_text_hook_generation_task(interaction, deconstruction, style):
+    print(f"Starting text hook generation for {style} style...")
+    top_winners, _, _ = find_best_references(style, GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS, num_winners=5)
+    
+    # Extract text hooks from the winning examples
+    text_hook_examples = []
+    if top_winners:
+        for winner in top_winners:
+            hook_analysis = winner.get("analysis", {}).get("hook_brain_analysis", {})
+            if hook_analysis.get("hook_format") == "text_hook":
+                text_hook_examples.append(hook_analysis.get("hook_text"))
+            # Also check the scene identification for on-screen text in the first few scenes
+            scenes = winner.get("analysis", {}).get("full_video_deconstruction", {}).get("scene_identification", [])
+            for scene in scenes[:2]: # Check first 2 scenes
+                if scene.get("on_screen_text"):
+                    text_hook_examples.append(scene.get("on_screen_text"))
+    
+    # Get the user's spoken hook for context
+    user_hook_text = deconstruction.get("transcript", "").split('.')[0]
+
+    system_prompt = "You are a viral TikTok marketing expert specializing in short, punchy, on-screen text hooks that stop the scroll. You think like a top-tier creator."
+    
+    user_prompt = f"""
+**WINNING TEXT HOOK EXAMPLES (for pattern inspiration):**
+{json.dumps(text_hook_examples, indent=2)}
+
+**USER'S SPOKEN HOOK (for context):**
+"{user_hook_text}"
+
+**YOUR TASK:**
+Generate 3 unique, on-screen text hook ideas for the user's video.
+- They must be short (ideally under 10 words).
+- They must create curiosity or state a bold claim.
+- They must be formatted as a simple, numbered list.
+- Do NOT add any extra commentary. Just the hooks.
+
+**Bad Example:** "You should try making a hook that is more controversial."
+**Good Example:**
+1. They LIED about this one thing.
+2. This is the #1 reason you're always tired.
+3. My doctor was shocked when I showed him this.
+"""
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.9 # Higher temperature for more creativity
+        )
+        text_hooks = response.choices[0].message.content
+
+        await interaction.followup.send(f"### ✍️ **3 Text Hooks to Test**\n\n{text_hooks}", ephemeral=True)
+
+    except Exception as e:
+        print(f"Error during text hook generation: {e}")
+        await interaction.followup.send(f"An error occurred during text hook generation: {e}", ephemeral=True)
+
 
 # --- Background Task Runners (V3 - CONTEXT AWARE) ---
 async def run_coaching_task(interaction, video_url, style, views):
