@@ -419,17 +419,16 @@ Generate 3 unique, on-screen text hook ideas for the user's video.
         print(f"Error during text hook generation: {e}")
         await interaction.followup.send(f"An error occurred during text hook generation: {e}", ephemeral=True)
 
-# --- SCRIPT REWRITING BRAIN (V5 - DISCORD EMBEDS) ---
+# --- SCRIPT REWRITING BRAIN (V5 - DISCORD EMBEDS & ROBUST PARSING) ---
 async def run_rewrite_task(interaction, deconstruction, style):
     print(f"Starting production script rewrite for {style} style...")
     winner_ref, _, _ = find_best_references(style, GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS, num_winners=1)
     
     system_prompt = "You are a world-class TikTok scriptwriter and video director. Your task is to rewrite the provided video's script into a structured list of scenes, improving its pacing, clarity, and conversion potential based on patterns from a proven winning video."
     
-    # This is the new prompt that asks for a JSON list of scenes.
     user_prompt = f"""
 **PROVEN WINNER'S FRAMEWORK (for inspiration):**
-{json.dumps(winner_ref[0] if winner_ref else 'N/A', indent=2)}
+{json.dumps(winner_ref if winner_ref else 'N/A', indent=2)}
 
 **USER'S CURRENT SCRIPT (Structured Dialogue):**
 {json.dumps(deconstruction.get('structured_transcript'), indent=2)}
@@ -443,13 +442,17 @@ Rewrite the user's script and structure it as a JSON list of scene objects.
 5.  **Crucially:** When it's time to play a clip, the "dialogue" for that scene should be `(Play Clip: [Source])`.
 6.  You MUST only rewrite dialogue where the original speaker was 'Creator'.
 
-**OUTPUT ONLY A VALID JSON LIST of objects.**
+**OUTPUT ONLY A VALID JSON OBJECT that contains a single key, "scenes", which holds the list of scene objects.**
 
-**Example of a single JSON object in the list:**
+**Example of the final JSON output structure:**
 {{
-    "scene_name": "10-18s (Problem)",
-    "visuals": "**On-screen Text:** 'My Lowest Point'\\nShows an old photo of the creator looking less fit.",
-    "dialogue": "I had tried every crazy workout and diet, but nothing worked until I discovered the real issue."
+  "scenes": [
+    {{
+      "scene_name": "10-18s (Problem)",
+      "visuals": "**On-screen Text:** 'My Lowest Point'\\nShows an old photo of the creator looking less fit.",
+      "dialogue": "I had tried every crazy workout and diet, but nothing worked until I discovered the real issue."
+    }}
+  ]
 }}
 """
     try:
@@ -457,26 +460,30 @@ Rewrite the user's script and structure it as a JSON list of scene objects.
             model="gpt-4o",
             messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
             temperature=0.7,
-            # Force the model to output JSON
             response_format={"type": "json_object"}
         )
         
-        # The AI will return a JSON object, likely with a key like "scenes"
-        # We use ast.literal_eval for safe parsing
-        structured_script_data = ast.literal_eval(response.choices[0].message.content)
+        # --- THIS IS THE FIX ---
+        # 1. Get the raw string content from the AI response.
+        raw_content = response.choices.message.content
+        
+        # 2. Apply our proven cleaning logic to remove markdown fences.
+        cleaned_content = raw_content.strip().replace("```json", "").replace("```", "")
 
-        # The scenes are likely inside a key, let's find it.
-        # Common keys could be "scenes", "script", "production_script", etc.
+        # 3. Safely parse the CLEANED content.
+        structured_script_data = ast.literal_eval(cleaned_content)
+        
         scenes = None
-        for key, value in structured_script_data.items():
-            if isinstance(value, list):
-                scenes = value
-                break
+        if isinstance(structured_script_data, dict):
+            # Find the list of scenes, regardless of the key name
+            for key, value in structured_script_data.items():
+                if isinstance(value, list):
+                    scenes = value
+                    break
         
         if not scenes:
             raise ValueError("Could not find the list of scenes in the AI's JSON response.")
 
-        # --- THIS IS THE NEW EMBED-BUILDING LOGIC ---
         await interaction.followup.send(f"### 🎬 **Your Production Script**", ephemeral=True)
 
         for scene in scenes:
@@ -484,15 +491,13 @@ Rewrite the user's script and structure it as a JSON list of scene objects.
             visuals = scene.get("visuals", "N/A")
             dialogue = scene.get("dialogue", "N/A")
 
-            # Create a new Discord Embed for each scene
             embed = discord.Embed(
                 title=f"🎬 {scene_name}",
                 color=discord.Color.blue()
             )
             embed.add_field(name="👁️ Visuals", value=visuals, inline=False)
             embed.add_field(name="🎤 Audio / Dialogue", value=dialogue, inline=False)
-
-            # Send the embed as a private message
+            
             await interaction.followup.send(embed=embed, ephemeral=True)
 
     except Exception as e:
