@@ -409,14 +409,14 @@ Generate 3 unique, on-screen text hook ideas for the user's video.
         print(f"Error during text hook generation: {e}")
         await interaction.followup.send(f"An error occurred during text hook generation: {e}", ephemeral=True)
 
-# --- SCRIPT REWRITING BRAIN (V4.1 - STYLE-AGNOSTIC) ---
+# --- SCRIPT REWRITING BRAIN (V4.2 - FORCED TABLE FORMAT) ---
 async def run_rewrite_task(interaction, deconstruction, style):
     print(f"Starting production script rewrite for {style} style...")
     winner_ref, _, _ = find_best_references(style, GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS, num_winners=1)
     
-    system_prompt = "You are a world-class TikTok scriptwriter and video director. Your task is to rewrite the provided video's script into a professional, scene-by-scene production script formatted as a Markdown table. **The rewritten dialogue should sound like something a real person would actually say on TikTok—it must be conversational and direct.**"
+    system_prompt = "You are a world-class TikTok scriptwriter and video director. Your task is to rewrite the provided video's script into a professional, scene-by-scene production script formatted as a perfect Markdown table. You must improve the original script based on patterns from a proven winning video."
     
-    # This prompt contains a more generic example to avoid biasing the AI.
+    # This is the new, more forceful prompt with a raw markdown example.
     user_prompt = f"""
 **PROVEN WINNER'S FRAMEWORK (for inspiration):**
 {json.dumps(winner_ref[0] if winner_ref else 'N/A', indent=2)}
@@ -426,14 +426,15 @@ async def run_rewrite_task(interaction, deconstruction, style):
 
 **YOUR TASK:**
 Rewrite the user's script into a professional production script.
-1.  Use a Markdown table with three columns: 'Time / Scene', 'Visuals', and 'Audio / Dialogue'.
+1.  You **MUST** format the output as a perfect Markdown table with three columns: 'Time / Scene', 'Visuals', and 'Audio / Dialogue'.
 2.  Break the video down into logical scenes (e.g., Hook, Problem, Solution, CTA).
-3.  For the 'Visuals' column, describe the on-screen action, camera angles, and any text overlays.
-4.  For the 'Audio / Dialogue' column, write the rewritten, improved dialogue.
-5.  **Crucially:** If the original script contained dialogue from a 'Clip' speaker, the 'Audio / Dialogue' for that scene should be `(Play Clip: [Source])`.
+3.  For the 'Visuals' column, describe the on-screen action, camera angles, and text overlays.
+4.  For the 'Audio / Dialogue' column, write the rewritten dialogue or note to play a clip.
+5.  When it's time to play a clip from the original video, the 'Audio / Dialogue' for that scene **MUST** be `(Play Clip: [Source])`.
 6.  You MUST only rewrite dialogue where the original speaker was 'Creator'.
 
-**Example Output Format (This is a generic example of the format, not the content):**
+**CRITICAL: Your final output must be ONLY the raw text for a Markdown table and nothing else. Follow this format exactly:**
+
 | Time / Scene  | Visuals                                                  | Audio / Dialogue                                                    |
 |---------------|----------------------------------------------------------|---------------------------------------------------------------------|
 | 0-4s (Hook)   | **Creator (Medium Close-Up):** Looks directly at camera. | "I was sick for two years, and doctors couldn't help. Then a stranger told me this." |
@@ -447,8 +448,13 @@ Rewrite the user's script into a professional production script.
             temperature=0.7
         )
         rewritten_script = response.choices[0].message.content
+
+        # The AI might still wrap its output in markdown fences, so we remove them.
+        cleaned_script = rewritten_script.strip().replace("```markdown", "").replace("```", "")
+        
         await interaction.followup.send(f"### ✍️ **Your Production Script**", ephemeral=True)
-        for chunk in split_message(rewritten_script):
+        # Send the cleaned script, which should now be a perfect table.
+        for chunk in split_message(cleaned_script):
             await interaction.followup.send(chunk, ephemeral=True)
 
     except Exception as e:
