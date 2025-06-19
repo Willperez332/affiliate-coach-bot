@@ -244,7 +244,7 @@ async def deconstruct_video(video_file, transcript):
 
     **YOUR TASK:**
     1.  Analyze the video and transcribe it into a structured dialogue list. Each item in the list should be an object with "speaker", "dialogue", and "on_screen_text" keys.
-    2.  The "speaker" can only be one of two options: 'Creator' (when the person on camera is talking) or 'Clip' (when dialogue is from an inserted movie clip, news report, etc.).
+    2.  The "speaker" can only be one of two options: 'Creator' or 'Clip'.
     3.  For each 'Clip', add a "source" key. **If the source is unknown or you are not 100% certain, the value MUST be 'Unknown Clip'. Do not guess.**
     4.  At each timestamp, note any significant "on_screen_text" that appears.
 
@@ -253,8 +253,11 @@ async def deconstruct_video(video_file, transcript):
 
     try:
         response = await model.generate_content_async([prompt, video_file])
-        cleaned_response = response.text.strip().replace("```json", "").replace("```", "")
-        deconstruction_data = json.loads(cleaned_response)
+        cleaned_response = response.text.strip().replace("```json", "").replace("```python", "").replace("```", "")
+        
+        # --- THIS IS THE FIX ---
+        # Use ast.literal_eval instead of json.loads to handle single quotes
+        deconstruction_data = ast.literal_eval(cleaned_response)
         
         full_deconstruction = {
             "transcript": transcript,
@@ -265,6 +268,7 @@ async def deconstruct_video(video_file, transcript):
     except Exception as e:
         print(f"Error during structured deconstruction: {e}")
         return {"error": "Failed to deconstruct video.", "details": str(e)}
+        
 async def process_video(video_url):
     """
     Main pipeline for downloading, transcribing with Whisper, 
