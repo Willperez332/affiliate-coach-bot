@@ -419,14 +419,27 @@ Generate 3 unique, on-screen text hook ideas for the user's video.
         print(f"Error during text hook generation: {e}")
         await interaction.followup.send(f"An error occurred during text hook generation: {e}", ephemeral=True)
 
-# --- SCRIPT REWRITING BRAIN (V6 - THE CLEAN SCRIPT) ---
+# --- SCRIPT REWRITING BRAIN (V6.1 - DEEP SEARCH FIX) ---
+def find_scene_list(data):
+    """
+    Recursively searches a dictionary to find the first list, which is assumed
+    to be the list of scenes.
+    """
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        for key, value in data.items():
+            found = find_scene_list(value)
+            if found is not None:
+                return found
+    return None
+
 async def run_rewrite_task(interaction, deconstruction, style):
     print(f"Starting Clean Script rewrite for {style} style...")
     winner_ref, _, _ = find_best_references(style, GOLD_WINNERS, PUBLIC_WINNERS, VANITY_LOSERS, DUD_LOSERS, num_winners=1)
     
     system_prompt = "You are an expert TikTok scriptwriter. Your task is to rewrite a video script to be more powerful and engaging, presenting it in a clean, scene-by-scene format. The output should be simple, clear, and easy for a creator to read and record."
     
-    # This prompt is radically simplified to produce a clean, readable script.
     user_prompt = f"""
 **PROVEN WINNER'S FRAMEWORK (for inspiration):**
 {json.dumps(winner_ref[0] if winner_ref else 'N/A', indent=2)}
@@ -437,29 +450,23 @@ async def run_rewrite_task(interaction, deconstruction, style):
 **YOUR TASK:**
 Rewrite the user's script and structure it as a JSON list of scene objects.
 1.  Each object in the list represents one scene and MUST have two keys: "scene_name" and "script_text".
-2.  The "scene_name" should be a short label for the scene (e.g., "0-4s (Hook)", "4-10s (Revelation)").
-3.  The "script_text" should contain the rewritten dialogue for the creator.
+2.  The "scene_name" should be a short label for the scene (e.g., "0-4s (Hook)").
+3.  The "script_text" should contain the rewritten dialogue.
 4.  **Crucially:** If a clip should be played, the "script_text" should simply be `(Play Clip: [Source])`.
 5.  If on-screen text is essential, note it in parentheses, like `(On-screen Text: They LIED about this)`.
 6.  Keep visual descriptions minimal. Focus on what needs to be said.
 
-**OUTPUT ONLY A VALID JSON LIST of objects.**
+**OUTPUT ONLY A VALID JSON OBJECT containing the list of scenes.**
 
 **PERFECT EXAMPLE OUTPUT:**
-[
-  {{
-    "scene_name": "0-4s (Hook)",
-    "script_text": "I was sick for two years and doctors couldn't help. Then a stranger told me this..."
-  }},
-  {{
-    "scene_name": "4-10s (Build-up)",
-    "script_text": "(On-screen Text: MY LOWEST POINT)\\n(Play Clip: News Report)"
-  }},
-  {{
-    "scene_name": "10-15s (CTA)",
-    "script_text": "So if you want to try what *actually* worked for me, check out the link."
-  }}
-]
+{{
+  "script": [
+    {{
+      "scene_name": "0-4s (Hook)",
+      "script_text": "I was sick for two years and doctors couldn't help. Then a stranger told me this..."
+    }}
+  ]
+}}
 """
     try:
         response = await client.chat.completions.create(
@@ -473,31 +480,22 @@ Rewrite the user's script and structure it as a JSON list of scene objects.
         cleaned_content = raw_content.strip().replace("```json", "").replace("```", "")
         structured_script_data = ast.literal_eval(cleaned_content)
         
-        scenes = None
-        if isinstance(structured_script_data, dict):
-            # The AI is likely wrapping the list in a key like "scenes" or "script"
-            for key, value in structured_script_data.items():
-                if isinstance(value, list):
-                    scenes = value
-                    break
-        elif isinstance(structured_script_data, list):
-            # The AI correctly returned just the list
-            scenes = structured_script_data
-
+        # --- THIS IS THE NEW, ROBUST FINDER ---
+        scenes = find_scene_list(structured_script_data)
+        
         if not scenes:
+            print(f"--- DEEP SEARCH FAILED --- Raw AI Response:\n{raw_content}")
             raise ValueError("Could not find the list of scenes in the AI's JSON response.")
 
-        # --- THE NEW, CLEAN EMBED-BUILDING LOGIC ---
         await interaction.followup.send(f"### 🎬 **Your New Script**", ephemeral=True)
 
         for scene in scenes:
             scene_name = scene.get("scene_name", "Unnamed Scene")
             script_text = scene.get("script_text", "N/A")
 
-            # Create a simple, clean embed for each scene
             embed = discord.Embed(
-                description=script_text, # The script is the main content
-                color=discord.Color.from_rgb(49, 107, 242) # A nice blue color
+                description=script_text,
+                color=discord.Color.from_rgb(49, 107, 242)
             )
             embed.set_author(name=f"🎬 {scene_name}")
 
