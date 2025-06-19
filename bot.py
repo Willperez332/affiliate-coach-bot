@@ -233,20 +233,29 @@ For each section, provide two bullets: one "✅ Good" and one "🚩 Bad". For ev
         
 async def deconstruct_video(video_file, transcript):
     """
-    Performs a structured deconstruction of the video, separating the Creator's
-    dialogue from inserted clips.
+    Performs a structured deconstruction of the video, with strict rules for
+    identifying the primary creator vs. stitched/reacted-to clips.
     """
     print("Performing structured deconstruction with Gemini...")
     model = genai.GenerativeModel(model_name="gemini-1.5-flash")
 
+    # This is the final, most robust prompt for video deconstruction.
     prompt = f"""
-    You are a master video analyst AI. Your task is to deconstruct the provided video into a structured format.
+    You are a master video analyst AI. Your task is to deconstruct the provided video into a structured format with very strict rules.
 
     **YOUR TASK:**
-    1.  Analyze the video and transcribe it into a structured dialogue list. Each item in the list should be an object with "speaker", "dialogue", and "on_screen_text" keys.
-    2.  The "speaker" can only be one of two options: 'Creator' or 'Clip'.
-    3.  For each 'Clip', add a "source" key. **If the source is unknown, the value MUST be the string "Unknown Clip". Do not guess.**
-    4.  At each timestamp, note any significant "on_screen_text" that appears. If there is no text, the value should be `null`.
+    1.  First, identify the **primary creator** (the person reacting, telling the main story, or on screen the most).
+    2.  Transcribe the video into a structured dialogue list. Each item in the list must have "speaker" and "dialogue" keys.
+    
+    **VERY STRICT RULES FOR "SPEAKER":**
+    - The "speaker" for the primary creator **MUST ALWAYS** be labeled as **'Creator'**.
+    - If the video cuts away to another creator's video (a stitch or react), that person's dialogue **MUST** be labeled as **'Clip'**.
+    - If the video cuts away to a movie scene, news report, or any other media, that audio **MUST** be labeled as **'Clip'**.
+    - For a simple talking-head video where one person is speaking, every single entry **MUST** have the speaker as 'Creator'.
+
+    **ADDITIONAL REQUIREMENTS:**
+    - For each 'Clip', add a "source" key. If the source is another TikTok creator, label it 'Stitched Creator'. If it's a movie, identify it. If unknown, use 'Unknown Clip'.
+    - Note any significant "on_screen_text" for each dialogue entry. If there is no text, the value should be `null`.
 
     **OUTPUT ONLY A STRUCTURED JSON OBJECT** with a single key "structured_transcript" that contains the list of dialogue objects.
     """
@@ -254,13 +263,9 @@ async def deconstruct_video(video_file, transcript):
     try:
         response = await model.generate_content_async([prompt, video_file])
         
-        # --- THIS IS THE ROBUST PARSING LOGIC ---
-        # 1. Clean the outer markdown fences
         cleaned_response = response.text.strip().replace("```json", "").replace("```python", "").replace("```", "")
-        # 2. Safely replace JSON 'null' with Python 'None'
         cleaned_response = cleaned_response.replace('null', 'None')
         
-        # 3. Use the flexible ast.literal_eval parser
         deconstruction_data = ast.literal_eval(cleaned_response)
         
         full_deconstruction = {
@@ -271,7 +276,6 @@ async def deconstruct_video(video_file, transcript):
         return full_deconstruction
     except Exception as e:
         print(f"Error during structured deconstruction: {e}")
-        # Add the raw response to the error message for easier debugging
         print(f"--- PARSING FAILED --- Raw AI Response:\n{response.text}")
         return {"error": "Failed to deconstruct video.", "details": str(e)}
         
