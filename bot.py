@@ -245,18 +245,22 @@ async def deconstruct_video(video_file, transcript):
     **YOUR TASK:**
     1.  Analyze the video and transcribe it into a structured dialogue list. Each item in the list should be an object with "speaker", "dialogue", and "on_screen_text" keys.
     2.  The "speaker" can only be one of two options: 'Creator' or 'Clip'.
-    3.  For each 'Clip', add a "source" key. **If the source is unknown or you are not 100% certain, the value MUST be 'Unknown Clip'. Do not guess.**
-    4.  At each timestamp, note any significant "on_screen_text" that appears.
+    3.  For each 'Clip', add a "source" key. **If the source is unknown, the value MUST be the string "Unknown Clip". Do not guess.**
+    4.  At each timestamp, note any significant "on_screen_text" that appears. If there is no text, the value should be `null`.
 
     **OUTPUT ONLY A STRUCTURED JSON OBJECT** with a single key "structured_transcript" that contains the list of dialogue objects.
     """
 
     try:
         response = await model.generate_content_async([prompt, video_file])
-        cleaned_response = response.text.strip().replace("```json", "").replace("```python", "").replace("```", "")
         
-        # --- THIS IS THE FIX ---
-        # Use ast.literal_eval instead of json.loads to handle single quotes
+        # --- THIS IS THE ROBUST PARSING LOGIC ---
+        # 1. Clean the outer markdown fences
+        cleaned_response = response.text.strip().replace("```json", "").replace("```python", "").replace("```", "")
+        # 2. Safely replace JSON 'null' with Python 'None'
+        cleaned_response = cleaned_response.replace('null', 'None')
+        
+        # 3. Use the flexible ast.literal_eval parser
         deconstruction_data = ast.literal_eval(cleaned_response)
         
         full_deconstruction = {
@@ -267,6 +271,8 @@ async def deconstruct_video(video_file, transcript):
         return full_deconstruction
     except Exception as e:
         print(f"Error during structured deconstruction: {e}")
+        # Add the raw response to the error message for easier debugging
+        print(f"--- PARSING FAILED --- Raw AI Response:\n{response.text}")
         return {"error": "Failed to deconstruct video.", "details": str(e)}
         
 async def process_video(video_url):
